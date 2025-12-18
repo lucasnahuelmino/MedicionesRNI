@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0"
 
 REM -----------------------------
 REM Config
@@ -39,10 +40,10 @@ python -m pip install --upgrade pip
 REM Instalar requirements
 if exist requirements.txt (
   echo [INFO] Instalando dependencias desde requirements.txt...
-  pip install -r requirements.txt
+  python -m pip install -r requirements.txt
 ) else (
   echo [WARN] No existe requirements.txt. Instalando dependencias base...
-  pip install streamlit pandas numpy Pillow openpyxl pydeck plotly python-docx reportlab kaleido
+  python -m pip install streamlit pandas numpy Pillow openpyxl pydeck plotly python-docx reportlab kaleido
 )
 
 echo.

@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0"
 
 set VENV=.venv
 
@@ -22,7 +23,8 @@ if not exist "archivosdata" mkdir archivosdata
 if not exist "assets" mkdir assets
 if not exist "styles" mkdir styles
 
-REM Cambia app.py si tu entrypoint tiene otro nombre
-streamlit run app.py
+REM Ejecutar (robusto)
+python -m streamlit run app.py --server.port 8501 --server.headless false
 
 endlocal
+
