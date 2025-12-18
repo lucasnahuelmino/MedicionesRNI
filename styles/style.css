@@ -1,0 +1,96 @@
+/* ==============================
+   ENACOM Dashboard Modern (mid)
+   ============================== */
+
+:root{
+  --card-bg-strong: rgba(255,255,255,0.92);
+  --card-border: rgba(0,0,0,0.07);
+  --shadow-soft: 0 6px 22px rgba(0,0,0,0.08);
+  --shadow-mini: 0 3px 12px rgba(0,0,0,0.06);
+}
+
+/* Cards */
+.en-card{
+  background: var(--card-bg-strong);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  box-shadow: var(--shadow-soft);
+  padding: 14px 14px;
+}
+
+/* KPI */
+.kpi-title{ font-size: 0.85rem; opacity: 0.75; margin-bottom: 6px; }
+.kpi-value{ font-size: 1.65rem; font-weight: 800; line-height: 1.1; color: var(--enacom-blue); }
+.kpi-sub{ font-size: 0.85rem; opacity: 0.78; margin-top: 6px; }
+
+/* “Hero” suave ENACOM */
+.en-hero{
+  border-radius: 18px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, rgba(0,59,122,0.12), rgba(0,112,209,0.08));
+  border: 1px solid rgba(0,59,122,0.15);
+  box-shadow: var(--shadow-mini);
+}
+
+/* Sidebar: radio pills */
+section[data-testid="stSidebar"] .stRadio > div{
+  gap: 6px;
+}
+section[data-testid="stSidebar"] .stRadio label{
+  border: 1px solid rgba(0,0,0,0.10);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.55);
+}
+section[data-testid="stSidebar"] .stRadio label:hover{
+  border-color: rgba(0,59,122,0.35);
+}
+
+/* Botones: institucional */
+.stButton > button{
+  border-radius: 12px !important;
+  border: 1px solid rgba(0,59,122,0.25) !important;
+}
+
+/* ===== Header Card: texto izq + logo der ===== */
+.enacom-header-card{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:16px;
+
+  padding:16px 18px;
+  margin: 10px 0 18px 0;
+
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.80);
+  box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+}
+
+.enacom-header-left .title{
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin: 0;
+  color: #003b7a; /* azul ENACOM */
+}
+
+.enacom-header-left .subtitle{
+  margin-top: 6px;
+  font-size: 0.95rem;
+  opacity: 0.9;
+}
+
+.enacom-header-right{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  min-width: 160px;
+}
+
+.enacom-header-right img{
+  height: 58px;   /* ajustá 52–64 según gusto */
+  width: auto;
+  object-fit: contain;
+}

@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Entornos virtuales
+.venv/
+venv/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Bases de datos / data local
+archivosdata/*.db
+archivosdata/*.sqlite
+archivosdata/*.sqlite3
+*.db
+
+# Sistema
+.DS_Store
+Thumbs.db
