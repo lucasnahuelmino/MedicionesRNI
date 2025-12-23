@@ -83,13 +83,11 @@ st.markdown(header_html, unsafe_allow_html=True)
 init_session_state()
 ensure_tabla_maestra_loaded()
 
-
 # ============================================================
 # 🧭 NAV en Sidebar (botones tipo “ferretería”)
 # ============================================================
 st.session_state.setdefault("page", "Inicio")
 
-# Si venías de una versión con “Exportar”, lo redirigimos a Gestión
 if st.session_state.get("page") == "Exportar":
     st.session_state["page"] = "Gestión"
 
@@ -188,11 +186,41 @@ def render_inicio():
 
         st.markdown("---")
 
-    # Top 5
-    st.markdown("### 🔥 Top 5 resultados")
-    top = df.dropna(subset=["Resultado"]).sort_values("Resultado", ascending=False).head(5)
-    cols_show = [c for c in ["CCTE","Provincia","Localidad","Resultado","Expediente","Nombre Archivo"] if c in top.columns]
-    st.dataframe(top[cols_show].reset_index(drop=True), width="stretch")
+        # Top 5 localidades (por su máximo Resultado) + Resultado % + renombre columna
+    st.markdown("### 🔥 Top 5 localidades (máximo registrado)")
+
+    df_toploc = df.dropna(subset=["Resultado"]).copy()
+
+    # Nos quedamos con 1 fila por Localidad: la que tenga el mayor Resultado
+    idx = (
+        df_toploc.groupby("Localidad")["Resultado"]
+        .idxmax()
+        .dropna()
+        .astype(int)
+    )
+
+    top_loc = df_toploc.loc[idx].copy()
+    top_loc = top_loc.sort_values("Resultado", ascending=False).head(5)
+
+    # Columna Resultado % (mismo cálculo que usás en la app)
+    top_loc["Resultado %"] = top_loc["Resultado"].apply(
+        lambda x: (x**2 / 3770 / 0.20021 * 100) if pd.notna(x) else np.nan
+    )
+
+    # Renombrar SOLO para mostrar en esta tabla
+    top_loc = top_loc.rename(columns={"Resultado": "Resultado V/m"})
+
+    cols_show = [
+        c for c in [
+            "CCTE", "Provincia", "Localidad",
+            "Resultado V/m", "Resultado %",
+            "Expediente", "Nombre Archivo"
+        ]
+        if c in top_loc.columns
+    ]
+
+    st.dataframe(top_loc[cols_show].reset_index(drop=True), width="stretch")
+
 
     # Mini histo
     st.markdown("### 📈 Distribución rápida de resultados (V/m)")
