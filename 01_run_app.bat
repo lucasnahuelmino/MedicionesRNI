@@ -3,6 +3,7 @@ setlocal
 cd /d "%~dp0"
 
 set VENV=.venv
+set PORT=8501
 
 echo.
 echo ==========================
@@ -18,13 +19,14 @@ if not exist "%VENV%\Scripts\activate.bat" (
 
 call "%VENV%\Scripts\activate.bat"
 
-REM Asegura carpetas esperadas
 if not exist "archivosdata" mkdir archivosdata
 if not exist "assets" mkdir assets
 if not exist "styles" mkdir styles
 
-REM Ejecutar (robusto)
-python -m streamlit run app.py --server.port 8501 --server.headless false
+REM Abrir navegador (espera un toque a que levante)
+start "" http://localhost:%PORT%
+
+REM Ejecutar app
+python -m streamlit run app.py --server.port %PORT% --server.headless false
 
 endlocal
-
