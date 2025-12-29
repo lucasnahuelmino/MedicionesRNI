@@ -88,12 +88,12 @@ sb.markdown("### 🧭 Navegación")
 
 colA, colB = sb.columns(2)
 with colA:
-    sb.button("🏠 Inicio", use_container_width=True, on_click=goto, args=("Inicio",))
-    sb.button("📊 Resumen de localidades", use_container_width=True, on_click=goto, args=("Resumen",))
-    sb.button("📈 Gráficos", use_container_width=True, on_click=goto, args=("Gráficos",))
+    sb.button("🏠 Inicio", width='stretch', on_click=goto, args=("Inicio",))
+    sb.button("📊 Resumen de localidades", width='stretch', on_click=goto, args=("Resumen",))
+    sb.button("📈 Gráficos", width='stretch', on_click=goto, args=("Gráficos",))
 with colB:
-    sb.button("🧩 Gestión de localidades", use_container_width=True, on_click=goto, args=("Gestión",))
-    sb.button("🧪 Diagnóstico", use_container_width=True, on_click=goto, args=("Diagnóstico",))
+    sb.button("🧩 Gestión de localidades", width='stretch', on_click=goto, args=("Gestión",))
+    sb.button("🧪 Diagnóstico", width='stretch', on_click=goto, args=("Diagnóstico",))
 
 sb.markdown("---")
 
@@ -233,7 +233,7 @@ def render_inicio():
                     ]
                     if c in top_show.columns
                 ]
-                st.dataframe(top_show[cols_show].reset_index(drop=True), use_container_width=True)
+                st.dataframe(top_show[cols_show].reset_index(drop=True), width='stretch')
         else:
             st.info("No hay localidades con Resultado válido para armar el Top 5.")
     else:
@@ -245,7 +245,7 @@ def render_inicio():
     if not df_hist.empty:
         fig = px.histogram(df_hist, x="Resultado", nbins=40, title="")
         fig.update_layout(height=320, template="plotly_white")
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig, width='stretch')
     else:
         st.info("No hay resultados válidos para graficar.")
 
