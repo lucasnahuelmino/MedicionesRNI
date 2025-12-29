@@ -1,19 +1,24 @@
-from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from utils.time_utils import calcular_tiempo_total_por_archivo, format_timedelta_long
+from utils.time_utils import (
+    calcular_tiempo_total_por_archivo,
+    format_timedelta_long,
+    add_fechahora,
+)
 
 
 def render_gestion_localidades():
-    # ------------------- RESUMEN Y EDICIÓN DE LOCALIDAD ------------------
     st.header("📊 Gestión de Localidades")
 
-    df_base = st.session_state["tabla_maestra"].copy()
+    df_base = st.session_state.get("tabla_maestra", pd.DataFrame()).copy()
 
     columnas_necesarias = {"CCTE", "Provincia", "Localidad"}
     if df_base.empty or not columnas_necesarias.issubset(df_base.columns):
-        st.info("Todavía no hay datos suficientes (o faltan columnas CCTE/Provincia/Localidad) para gestionar localidades. Cargá mediciones nuevas.")
+        st.info(
+            "Todavía no hay datos suficientes (o faltan columnas CCTE/Provincia/Localidad) para gestionar localidades. "
+            "Cargá mediciones nuevas."
+        )
         df_filtrado_prov = pd.DataFrame()
         localidad_seleccionada = ""
         provincia_filtro = "Todas"
@@ -23,27 +28,13 @@ def render_gestion_localidades():
 
         with col1:
             lista_ccte = sorted(df_base["CCTE"].dropna().unique().tolist())
-            ccte_filtro = st.selectbox(
-                "Filtrar CCTE",
-                ["Todos"] + lista_ccte,
-                key="gestion_ccte"
-            )
-            if ccte_filtro == "Todos":
-                df_filtrado_ccte = df_base.copy()
-            else:
-                df_filtrado_ccte = df_base[df_base["CCTE"] == ccte_filtro].copy()
+            ccte_filtro = st.selectbox("Filtrar CCTE", ["Todos"] + lista_ccte, key="gestion_ccte")
+            df_filtrado_ccte = df_base.copy() if ccte_filtro == "Todos" else df_base[df_base["CCTE"] == ccte_filtro].copy()
 
         with col2:
             lista_prov = sorted(df_filtrado_ccte["Provincia"].dropna().unique().tolist())
-            provincia_filtro = st.selectbox(
-                "Filtrar Provincia",
-                ["Todas"] + lista_prov,
-                key="gestion_provincia"
-            )
-            if provincia_filtro == "Todas":
-                df_filtrado_prov = df_filtrado_ccte.copy()
-            else:
-                df_filtrado_prov = df_filtrado_ccte[df_filtrado_ccte["Provincia"] == provincia_filtro].copy()
+            provincia_filtro = st.selectbox("Filtrar Provincia", ["Todas"] + lista_prov, key="gestion_provincia")
+            df_filtrado_prov = df_filtrado_ccte.copy() if provincia_filtro == "Todas" else df_filtrado_ccte[df_filtrado_ccte["Provincia"] == provincia_filtro].copy()
 
         with col4:
             año_filtro = "Todos"
@@ -58,10 +49,7 @@ def render_gestion_localidades():
                 df_filtrado_prov = df_filtrado_prov.drop(columns=["_Año"])
 
         with col3:
-            if not df_filtrado_prov.empty:
-                localidades_cargadas = df_filtrado_prov["Localidad"].dropna().unique().tolist()
-            else:
-                localidades_cargadas = []
+            localidades_cargadas = df_filtrado_prov["Localidad"].dropna().unique().tolist() if not df_filtrado_prov.empty else []
             localidad_seleccionada = st.selectbox(
                 "Seleccionar Localidad",
                 [""] + sorted(localidades_cargadas),
@@ -74,22 +62,26 @@ def render_gestion_localidades():
     else:
         df_localidad = df_filtrado_prov.copy()
 
-    # Convertir fechas y horas
-    if "Fecha" in df_localidad.columns:
-        df_localidad["Fecha"] = pd.to_datetime(df_localidad["Fecha"], dayfirst=True, errors='coerce').dt.date
-    if "Hora" in df_localidad.columns:
-        df_localidad["Hora"] = pd.to_datetime(df_localidad["Hora"], errors='coerce').dt.time
-    if "Fecha" in df_localidad.columns and "Hora" in df_localidad.columns:
-        df_localidad["FechaHora"] = df_localidad.apply(
-            lambda x: datetime.combine(x["Fecha"], x["Hora"]) if pd.notna(x["Fecha"]) and pd.notna(x["Hora"]) else pd.NaT,
-            axis=1
-        )
-    else:
-        df_localidad["FechaHora"] = pd.NaT
+    # Normalizar Resultado (por las dudas)
+    if "Resultado" in df_localidad.columns:
+        df_localidad["Resultado"] = pd.to_numeric(df_localidad["Resultado"], errors="coerce")
+
+    # ✅ FechaHora robusta (parsea "20/03/2025" + "10:08:09 a.m.")
+    df_localidad = add_fechahora(df_localidad, fecha_col="Fecha", hora_col="Hora", out_col="FechaHora")
+
+    # Caption seguro (si está vacío, no rompe)
+    if "FechaHora" in df_localidad.columns and not df_localidad.empty:
+        faltan = int(df_localidad["FechaHora"].isna().sum())
+        total = int(len(df_localidad))
+        st.caption(f"FechaHora inválida: {faltan}/{total} ({(faltan/total*100 if total else 0):.1f}%)")
 
     # ---------------- Datos generales ----------------
     if localidad_seleccionada:
-        provincia_real = df_localidad["Provincia"].iloc[0] if "Provincia" in df_localidad.columns else "N/A"
+        provincia_real = (
+            df_localidad["Provincia"].iloc[0]
+            if "Provincia" in df_localidad.columns and not df_localidad.empty
+            else "N/A"
+        )
         titulo_scope = f"la localidad {localidad_seleccionada}, {provincia_real}"
     elif provincia_filtro != "Todas":
         titulo_scope = f"{provincia_filtro}"
@@ -103,146 +95,155 @@ def render_gestion_localidades():
     tiempo_total_localidad = calcular_tiempo_total_por_archivo(df_localidad)
     total_puntos = len(df_localidad)
     max_resultado = df_localidad["Resultado"].max() if "Resultado" in df_localidad.columns else None
-    max_resultado_pct = max_resultado**2 / 3770 / 0.20021 * 100 if pd.notna(max_resultado) else None
+    max_resultado_pct = (max_resultado**2) / 3770 / 0.20021 * 100 if pd.notna(max_resultado) else None
     sondas = df_localidad["Sonda"].dropna().unique().tolist() if "Sonda" in df_localidad.columns else []
 
     st.write(f"Cantidad total de puntos medidos: {total_puntos}")
     st.write(f"Máximo Resultado (V/m): {max_resultado}")
+    st.write(f"Máximo Resultado (%): {max_resultado_pct:.2f}" if max_resultado_pct is not None else "Máximo Resultado (%): N/A")
     st.write(f"Sonda utilizada: {', '.join(sondas) if sondas else 'N/A'}")
-    st.write(f"Tiempo total de mediciones: {format_timedelta_long(tiempo_total_localidad)} horas")
+    st.write(f"Tiempo total de mediciones: {format_timedelta_long(tiempo_total_localidad)}")
 
     # ---------------- Resumen por día y mes ----------------
-    resumen_dias = pd.DataFrame()
-    resumen_mensual = pd.DataFrame()
+    if "FechaHora" not in df_localidad.columns or df_localidad.empty:
+        return {
+            "df_base": df_base,
+            "df_filtrado_prov": df_filtrado_prov if "df_filtrado_prov" in locals() else pd.DataFrame(),
+            "df_localidad": df_localidad,
+            "localidad_seleccionada": localidad_seleccionada,
+            "provincia_filtro": provincia_filtro,
+            "ccte_filtro": ccte_filtro,
+            "titulo_scope": titulo_scope,
+            "max_resultado": max_resultado,
+            "max_resultado_pct": max_resultado_pct,
+        }
 
-    if "FechaHora" in df_localidad.columns and not df_localidad.empty:
-        df_localidad["FechaHora"] = pd.to_datetime(df_localidad["FechaHora"])
-        df_localidad["Fecha"] = df_localidad["FechaHora"].dt.date
-        df_localidad["Mes"] = df_localidad["FechaHora"].dt.to_period("M")
+    df_localidad["FechaHora"] = pd.to_datetime(df_localidad["FechaHora"], errors="coerce")
+    df_localidad = df_localidad.dropna(subset=["FechaHora"]).copy()
+    if df_localidad.empty:
+        st.warning("No se pudo armar FechaHora con los datos disponibles (Fecha/Hora vienen en formatos no parseables).")
+        return {
+            "df_base": df_base,
+            "df_filtrado_prov": df_filtrado_prov if "df_filtrado_prov" in locals() else pd.DataFrame(),
+            "df_localidad": df_localidad,
+            "localidad_seleccionada": localidad_seleccionada,
+            "provincia_filtro": provincia_filtro,
+            "ccte_filtro": ccte_filtro,
+            "titulo_scope": titulo_scope,
+            "max_resultado": max_resultado,
+            "max_resultado_pct": max_resultado_pct,
+        }
 
-        # --- Resumen diario ---
-        def resumen_por_dia(df_dia):
-            tiempo_total = calcular_tiempo_total_por_archivo(df_dia)
-            inicio_dt = df_dia["FechaHora"].min()
-            fin_dt = df_dia["FechaHora"].max()
-            hora_inicio = inicio_dt.strftime("%H:%M:%S") if pd.notna(inicio_dt) else "-"
-            hora_fin = fin_dt.strftime("%H:%M:%S") if pd.notna(fin_dt) else "-"
-            puntos = len(df_dia)
-            localidades = ", ".join(sorted(df_dia["Localidad"].dropna().unique()))
-            return {
-                "Hora de inicio": hora_inicio,
-                "Hora de fin": hora_fin,
-                "Tiempo total trabajado": format_timedelta_long(tiempo_total),
-                "Cantidad de puntos medidos": puntos,
-                "Localidades trabajadas (por día)": localidades,
-            }
+    df_localidad["Fecha"] = df_localidad["FechaHora"].dt.date
+    df_localidad["Mes"] = df_localidad["FechaHora"].dt.to_period("M").astype(str)
 
-        filas_resumen_dias = []
-        for fecha, g_dia in df_localidad.groupby("Fecha"):
-            info = resumen_por_dia(g_dia)
-            info["Fecha de medición"] = fecha
-            filas_resumen_dias.append(info)
+    # --- Resumen diario ---
+    def resumen_por_dia(df_dia):
+        tiempo_total = calcular_tiempo_total_por_archivo(df_dia)
+        inicio_dt = df_dia["FechaHora"].min()
+        fin_dt = df_dia["FechaHora"].max()
+        return {
+            "Hora de inicio": inicio_dt.strftime("%H:%M:%S") if pd.notna(inicio_dt) else "-",
+            "Hora de fin": fin_dt.strftime("%H:%M:%S") if pd.notna(fin_dt) else "-",
+            "Tiempo total trabajado": format_timedelta_long(tiempo_total),
+            "Cantidad de puntos medidos": len(df_dia),
+            "Localidades trabajadas (por día)": ", ".join(sorted(df_dia["Localidad"].dropna().unique())),
+        }
 
-        resumen_dias = pd.DataFrame(filas_resumen_dias)
-        if not resumen_dias.empty:
-            resumen_dias = resumen_dias[
-                [
-                    "Fecha de medición",
-                    "Hora de inicio",
-                    "Hora de fin",
-                    "Tiempo total trabajado",
-                    "Cantidad de puntos medidos",
-                    "Localidades trabajadas (por día)",
-                ]
+    filas_resumen_dias = []
+    for fecha, g_dia in df_localidad.groupby("Fecha"):
+        info = resumen_por_dia(g_dia)
+        info["Fecha de medición"] = fecha
+        filas_resumen_dias.append(info)
+
+    resumen_dias = pd.DataFrame(filas_resumen_dias)
+    if not resumen_dias.empty:
+        resumen_dias = resumen_dias[
+            [
+                "Fecha de medición",
+                "Hora de inicio",
+                "Hora de fin",
+                "Tiempo total trabajado",
+                "Cantidad de puntos medidos",
+                "Localidades trabajadas (por día)",
             ]
+        ]
 
-        # --- Resumen mensual ---
-        resumen_mensual = df_localidad.groupby("Mes").agg({
-            "FechaHora": ["min","max"],
-            "Localidad": lambda x: ", ".join(sorted(x.dropna().unique())),
-            "Resultado": "count"
-        }).reset_index()
+    # --- Resumen mensual base ---
+    resumen_mensual = df_localidad.groupby("Mes").agg({
+        "FechaHora": ["min", "max"],
+        "Localidad": lambda x: ", ".join(sorted(x.dropna().unique())),
+        "Resultado": "count"
+    }).reset_index()
+    resumen_mensual.columns = ["Mes", "Hora inicio", "Hora fin", "Localidades trabajadas", "Cantidad puntos"]
 
-        resumen_mensual.columns = ["Mes","Hora inicio","Hora fin","Localidades trabajadas","Cantidad puntos"]
+    # Horas trabajadas por mes (NUM + TEXTO)
+    def td_to_hours(td):
+        try:
+            return float(td.total_seconds()) / 3600.0
+        except Exception:
+            return 0.0
 
-        # Calcular tiempo total trabajado por mes
-        def calcular_tiempo_mes(g_mes):
-            return format_timedelta_long(calcular_tiempo_total_por_archivo(g_mes))
+    filas_tiempo_mes = []
+    for mes, g_mes in df_localidad.groupby("Mes"):
+        td_mes = calcular_tiempo_total_por_archivo(g_mes)
+        filas_tiempo_mes.append({
+            "Mes": str(mes),
+            "Horas trabajadas num": td_to_hours(td_mes),
+            "Horas trabajadas": format_timedelta_long(td_mes),
+        })
+    tiempo_por_mes = pd.DataFrame(filas_tiempo_mes)
 
-        filas_tiempo_mes = []
-        for mes, g_mes in df_localidad.groupby("Mes"):
-            filas_tiempo_mes.append({
-                "Mes": mes,
-                "Horas trabajadas": calcular_tiempo_mes(g_mes)
-            })
-        tiempo_por_mes = pd.DataFrame(filas_tiempo_mes)
+    resumen_mensual = resumen_mensual.merge(tiempo_por_mes, on="Mes", how="left")
 
-        resumen_mensual = resumen_mensual.merge(tiempo_por_mes, on="Mes")
+    # Tabs
+    tab1, tab2, tab3 = st.tabs(["📅 Resumen Diario", "🗓️ Resumen Mensual", "📊 Gráfico"])
 
-        # -------- Tabs para elegir vista --------
-        tab1, tab2, tab3 = st.tabs(["📅 Resumen Diario", "🗓️ Resumen Mensual", "📊 Gráfico"])
+    with tab1:
+        st.markdown(f"### ⏱️ Tiempo trabajado por día en {titulo_scope}")
+        st.dataframe(resumen_dias, width="stretch")
 
-        with tab1:
-            st.markdown(f"### ⏱️ Tiempo trabajado por día en {titulo_scope}")
-            st.dataframe(resumen_dias)
+    with tab2:
+        st.markdown(f"### 📅 Mediciones Totales por mes en {titulo_scope}")
+        st.dataframe(resumen_mensual, width="stretch")
 
-        with tab2:
-            st.markdown(f"### 📅 Mediciones Totales por mes en {titulo_scope}")
-            st.dataframe(resumen_mensual)
+    with tab3:
+        if not resumen_mensual.empty:
+            st.markdown(f"### 📊 Gráfico mensual de mediciones y tiempo trabajado en {titulo_scope}")
 
-        with tab3:
-            if not resumen_mensual.empty:
-                st.markdown(f"### 📊 Gráfico mensual de mediciones y tiempo trabajado en {titulo_scope}")
+            import plotly.graph_objects as go
 
-                import plotly.graph_objects as go
+            fig = go.Figure()
 
-                # Crear figura con dos ejes: cantidad de puntos y horas trabajadas
-                fig = go.Figure()
+            fig.add_trace(go.Bar(
+                x=resumen_mensual["Mes"].astype(str),
+                y=resumen_mensual["Cantidad puntos"],
+                name="Cantidad puntos",
+                yaxis="y1",
+                text=resumen_mensual["Cantidad puntos"],
+                textposition="auto",
+                hovertext=resumen_mensual["Localidades trabajadas"],
+                hovertemplate="<b>%{x}</b><br>Puntos: %{y}<br>Localidades: %{hovertext}"
+            ))
 
-                # Barra: Cantidad de puntos
-                fig.add_trace(go.Bar(
-                    x=resumen_mensual["Mes"].astype(str),
-                    y=resumen_mensual["Cantidad puntos"],
-                    name="Cantidad puntos",
-                    marker_color="steelblue",
-                    yaxis="y1",
-                    text=resumen_mensual["Cantidad puntos"],
-                    textposition="auto",
-                    hovertext=resumen_mensual["Localidades trabajadas"],  # 👈 tooltip
-                    hovertemplate="<b>%{x}</b><br>Puntos: %{y}<br>Localidades: %{hovertext}"
-                ))
+            fig.add_trace(go.Scatter(
+                x=resumen_mensual["Mes"].astype(str),
+                y=resumen_mensual["Horas trabajadas num"].fillna(0),
+                name="Horas trabajadas",
+                yaxis="y2",
+                mode="lines+markers",
+            ))
 
-                # Línea: Horas trabajadas
-                def tiempo_a_horas(s):
-                    h, m, sec = map(int, s.split(":"))
-                    return h + m/60 + sec/3600
+            fig.update_layout(
+                xaxis=dict(title="Mes"),
+                yaxis=dict(title="Cantidad de puntos", side="left"),
+                yaxis2=dict(title="Horas trabajadas", overlaying="y", side="right"),
+                legend=dict(x=0.01, y=0.99),
+                template="plotly_white",
+                height=450
+            )
 
-                resumen_mensual["Horas trabajadas num"] = resumen_mensual["Horas trabajadas"].apply(tiempo_a_horas)
-
-                fig.add_trace(go.Scatter(
-                    x=resumen_mensual["Mes"].astype(str),
-                    y=resumen_mensual["Horas trabajadas num"],
-                    name="Horas trabajadas",
-                    yaxis="y2",
-                    mode="lines+markers",
-                    line=dict(color="orange", width=2)
-                ))
-
-                # Configuración de ejes
-                fig.update_layout(
-                    xaxis=dict(title="Mes"),
-                    yaxis=dict(title="Cantidad de puntos", side="left"),
-                    yaxis2=dict(
-                        title="Horas trabajadas",
-                        overlaying="y",
-                        side="right"
-                    ),
-                    legend=dict(x=0.01, y=0.99),
-                    template="plotly_white",
-                    height=450
-                )
-
-                st.plotly_chart(fig, width="stretch")
+            st.plotly_chart(fig, width="stretch")
 
     return {
         "df_base": df_base,

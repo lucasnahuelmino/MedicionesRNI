@@ -1,130 +1,148 @@
-from datetime import datetime
-import numpy as np
+from __future__ import annotations
+
 import pandas as pd
 import streamlit as st
-import openpyxl
-from openpyxl.styles import Alignment, Font
-from openpyxl.drawing.image import Image as XLImage
 
-from utils.time_utils import calcular_tiempo_total_por_archivo, format_timedelta_long
+from utils.time_utils import (
+    add_fechahora,
+    calcular_tiempo_total_por_archivo,
+    format_timedelta_long,
+)
+
+# Constante para % (la misma que venís usando)
+K_DEN = 3770 * 0.20021
 
 
 def render_resumen_general():
-    # ------------------- RESUMEN GENERAL DE LOCALIDADES (con filtros previos) ------------------
-    if "tabla_maestra" in st.session_state and not st.session_state["tabla_maestra"].empty:
-        df = st.session_state["tabla_maestra"].copy()
+    st.header("📊 Resumen general de mediciones")
+
+    df = st.session_state.get("tabla_maestra", pd.DataFrame()).copy()
+    if df.empty:
+        st.info("Aún no hay datos cargados. Importá mediciones desde el sidebar.")
+        return
+
+    # --------- Normalizaciones mínimas ---------
+    if "Resultado" in df.columns:
         df["Resultado"] = pd.to_numeric(df["Resultado"], errors="coerce")
 
-        # --- 🔍 FILTROS PREVIOS ---
-        st.header("📊 Resumen general de mediciones")
+    # --------- Filtros previos ---------
+    c1, c2, c3 = st.columns([1, 1, 1])
 
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col1:
-            ccte_sel = st.selectbox(
-                "Filtrar CCTE",
-                ["Todos"] + sorted(df["CCTE"].dropna().unique().tolist()),
-                key="resumen_ccte"
-            )
+    with c1:
+        ccte_sel = "Todos"
+        if "CCTE" in df.columns:
+            opciones = ["Todos"] + sorted(df["CCTE"].dropna().unique().tolist())
+            ccte_sel = st.selectbox("Filtrar CCTE", opciones, key="resumen_ccte")
             if ccte_sel != "Todos":
-                df = df[df["CCTE"] == ccte_sel]
+                df = df[df["CCTE"] == ccte_sel].copy()
 
-        with col2:
-            prov_sel = st.selectbox(
-                "Filtrar Provincia",
-                ["Todas"] + sorted(df["Provincia"].dropna().unique().tolist()),
-                key="resumen_provincia"
-            )
+    with c2:
+        prov_sel = "Todas"
+        if "Provincia" in df.columns:
+            opciones = ["Todas"] + sorted(df["Provincia"].dropna().unique().tolist())
+            prov_sel = st.selectbox("Filtrar Provincia", opciones, key="resumen_provincia")
             if prov_sel != "Todas":
-                df = df[df["Provincia"] == prov_sel]
+                df = df[df["Provincia"] == prov_sel].copy()
 
-        with col3:
-            año_sel = "Todos"
-            if "Fecha" in df.columns:
-                df["Fecha"] = pd.to_datetime(df["Fecha"], dayfirst=True, errors="coerce")
-                años_disp = sorted(df["Fecha"].dt.year.dropna().astype(int).unique().tolist(), reverse=True)
-                if años_disp:
-                    año_sel = st.selectbox(
-                        "Filtrar Año",
-                        ["Todos"] + [str(a) for a in años_disp],
-                        key="resumen_año"
-                    )
-                    if año_sel != "Todos":
-                        df = df[df["Fecha"].dt.year == int(año_sel)]
-
-        # --- Procesamiento base ---
+    with c3:
+        anio_sel = "Todos"
         if "Fecha" in df.columns:
-            df["Fecha"] = pd.to_datetime(df["Fecha"], dayfirst=True, errors='coerce').dt.date
-        if "Hora" in df.columns:
-            df["Hora"] = pd.to_datetime(df["Hora"], errors='coerce').dt.time
+            _f = pd.to_datetime(df["Fecha"], dayfirst=True, errors="coerce")
+            anios_disp = sorted(_f.dt.year.dropna().astype(int).unique().tolist(), reverse=True)
+            if anios_disp:
+                opciones = ["Todos"] + [str(a) for a in anios_disp]
+                anio_sel = st.selectbox("Filtrar Año", opciones, key="resumen_anio")
+                if anio_sel != "Todos":
+                    df = df[_f.dt.year == int(anio_sel)].copy()
 
-        if "Fecha" in df.columns and "Hora" in df.columns:
-            df["FechaHora"] = df.apply(
-                lambda x: datetime.combine(x["Fecha"], x["Hora"]) if pd.notna(x["Fecha"]) and pd.notna(x["Hora"]) else pd.NaT,
-                axis=1
-            )
-        else:
-            df["FechaHora"] = pd.NaT
+    if df.empty:
+        st.warning("Con esos filtros no quedaron registros.")
+        return
 
-        # --- Resumen agrupado ---
-        resumen_localidad = []
-        for (ccte, prov, loc), g in df.groupby(["CCTE", "Provincia", "Localidad"]):
-            inicio = g["FechaHora"].min() if "FechaHora" in g.columns else None
-            fin = g["FechaHora"].max() if "FechaHora" in g.columns else None
-            tiempo_total_localidad = calcular_tiempo_total_por_archivo(g)
-            max_res = g["Resultado"].max() if pd.notna(g["Resultado"].max()) else None
-            resumen_localidad.append({
-                "CCTE": ccte,
-                "Provincia": prov,
-                "Localidad": loc,
-                "Inicio": inicio,
-                "Fin": fin,
-                "Mediciones": len(g),
-                "Tiempo mediciones": format_timedelta_long(tiempo_total_localidad),
-                "Resultado Max (V/m)": max_res,
-                "Resultado Max (%)": max_res**2 / 3770 / 0.20021 * 100 if max_res else None,
-                "N° Expediente": ", ".join(sorted(g["Expediente"].dropna().unique().astype(str))),
-                "Sonda utilizada": ", ".join(sorted(g["Sonda"].dropna().unique().astype(str))) if "Sonda" in g.columns else "N/A"
-            })
+    # --------- Construir FechaHora robusta (sin apply por fila) ---------
+    df = add_fechahora(df, fecha_col="Fecha", hora_col="Hora", out_col="FechaHora")
 
-        resumen_localidad_df = pd.DataFrame(resumen_localidad)
+    valid_fh = df["FechaHora"].notna().sum() if "FechaHora" in df.columns else 0
+    st.caption(
+        f"FechaHora válida: {valid_fh:,}/{len(df):,} "
+        f"({(valid_fh/len(df)*100 if len(df) else 0):.1f}%)"
+        .replace(",", ".")
+    )
 
-        st.dataframe(resumen_localidad_df)
+    # --------- Resumen por localidad (vectorizado y con bucles chicos) ---------
+    # Columnas mínimas para agrupar
+    needed = ["CCTE", "Provincia", "Localidad"]
+    if not all(c in df.columns for c in needed):
+        st.error("Faltan columnas necesarias (CCTE/Provincia/Localidad) en la tabla.")
+        return
 
-        # --- Botón de exportación ---
-        if not resumen_localidad_df.empty:
-            if st.button("📥 Exportar resumen filtrado a Excel"):
-                try:
-                    ruta_excel = "resumen_localidades_filtrado.xlsx"
-                    resumen_localidad_df.to_excel(ruta_excel, index=False)
-                    wb = openpyxl.load_workbook(ruta_excel)
-                    ws = wb.active
+    # Base de agregados rápidos
+    gb = df.groupby(["CCTE", "Provincia", "Localidad"], dropna=False)
 
-                    # Logo institucional
-                    try:
-                        logo_path = "assets/enacom_logo.png"
-                        img = XLImage(logo_path)
-                        img.width, img.height = 200, 70
-                        ws.add_image(img, "A1")
-                        ws.insert_rows(1, amount=5)
-                    except Exception as e:
-                        st.warning(f"No se pudo insertar logo: {e}")
+    resumen = gb.agg(
+        Mediciones=("Resultado", "size"),
+        Resultado_Max_Vm=("Resultado", "max"),
+        Inicio=("FechaHora", "min"),
+        Fin=("FechaHora", "max"),
+    ).reset_index()
 
-                    for cell in ws[6]:
-                        cell.font = Font(bold=True)
-                        cell.alignment = Alignment(horizontal="center", vertical="center")
+    # % del máximo
+    resumen["Resultado_Max_%"] = (resumen["Resultado_Max_Vm"] ** 2) / K_DEN * 100
+    resumen.loc[resumen["Resultado_Max_Vm"].isna(), "Resultado_Max_%"] = pd.NA
 
-                    for row in ws.iter_rows(min_row=7, max_row=ws.max_row, min_col=1, max_col=ws.max_column):
-                        for cell in row:
-                            cell.alignment = Alignment(horizontal="center", vertical="center")
+    # Expedientes / Sondas (esto es lo más “caro”; lo hago controlado)
+    if "Expediente" in df.columns:
+        exp_map = gb["Expediente"].apply(
+            lambda x: ", ".join(sorted(set(x.dropna().astype(str)))))
+        resumen = resumen.merge(exp_map.rename("N° Expediente"), on=["CCTE", "Provincia", "Localidad"], how="left")
+    else:
+        resumen["N° Expediente"] = ""
 
-                    wb.save(ruta_excel)
-                    st.success(f"Archivo '{ruta_excel}' generado con formato y logo.")
-                    with open(ruta_excel, "rb") as f:
-                        st.download_button(
-                            label="⬇️ Descargar Excel filtrado",
-                            data=f,
-                            file_name=ruta_excel,
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                        )
-                except Exception as e:
-                    st.error(f"Error exportando Excel: {e}")
+    if "Sonda" in df.columns:
+        sonda_map = gb["Sonda"].apply(
+            lambda x: ", ".join(sorted(set(x.dropna().astype(str)))))
+        resumen = resumen.merge(sonda_map.rename("Sonda utilizada"), on=["CCTE", "Provincia", "Localidad"], how="left")
+    else:
+        resumen["Sonda utilizada"] = ""
+
+    # Tiempo trabajado por localidad
+    # (este loop es por cantidad de localidades, no por filas -> mucho más liviano)
+    tiempos = []
+    for _, row in resumen[["CCTE", "Provincia", "Localidad"]].iterrows():
+        ccte, prov, loc = row["CCTE"], row["Provincia"], row["Localidad"]
+        g = df[(df["CCTE"] == ccte) & (df["Provincia"] == prov) & (df["Localidad"] == loc)]
+        td = calcular_tiempo_total_por_archivo(g)
+        tiempos.append(format_timedelta_long(td))
+
+    resumen["Tiempo trabajado"] = tiempos
+
+    # Formatos finales
+    # (Inicio/Fin pueden quedar NaT si no hubo parseo de fecha/hora)
+    if "Inicio" in resumen.columns:
+        resumen["Inicio"] = pd.to_datetime(resumen["Inicio"], errors="coerce")
+    if "Fin" in resumen.columns:
+        resumen["Fin"] = pd.to_datetime(resumen["Fin"], errors="coerce")
+
+    # Ordenar por pico max % (o V/m) descendente
+    resumen = resumen.sort_values(["Resultado_Max_%", "Resultado_Max_Vm"], ascending=False)
+
+    # Renombres “lindos”
+    resumen = resumen.rename(columns={
+        "Resultado_Max_Vm": "Resultado Max (V/m)",
+        "Resultado_Max_%": "Resultado Max (%)",
+    })
+
+    # Mostrar
+    st.dataframe(
+        resumen[[
+            "CCTE", "Provincia", "Localidad",
+            "Inicio", "Fin",
+            "Mediciones",
+            "Tiempo trabajado",
+            "Resultado Max (V/m)",
+            "Resultado Max (%)",
+            "N° Expediente",
+            "Sonda utilizada",
+        ]],
+        width="stretch"
+    )

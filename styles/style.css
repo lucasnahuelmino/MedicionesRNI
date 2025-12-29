@@ -2,14 +2,21 @@
    ENACOM Dashboard Modern (mid)
    ============================== */
 
+/* -------- TOKENS / PALETA -------- */
 :root{
+  --enacom-blue: #003b7a;
+  --enacom-accent: #0070d1;
+
   --card-bg-strong: rgba(255,255,255,0.92);
+  --card-bg-soft: rgba(255,255,255,0.78);
+
   --card-border: rgba(0,0,0,0.07);
+
   --shadow-soft: 0 6px 22px rgba(0,0,0,0.08);
-  --shadow-mini: 0 3px 12px rgba(0,0,0,0.06);
+  --shadow-mini: 0 4px 18px rgba(0,0,0,0.06);
 }
 
-/* Cards */
+/* -------- CARDS GENERALES -------- */
 .en-card{
   background: var(--card-bg-strong);
   border: 1px solid var(--card-border);
@@ -18,41 +25,20 @@
   padding: 14px 14px;
 }
 
-/* KPI */
-.kpi-title{ font-size: 0.85rem; opacity: 0.75; margin-bottom: 6px; }
-.kpi-value{ font-size: 1.65rem; font-weight: 800; line-height: 1.1; color: var(--enacom-blue); }
-.kpi-sub{ font-size: 0.85rem; opacity: 0.78; margin-top: 6px; }
-
 /* “Hero” suave ENACOM */
 .en-hero{
   border-radius: 18px;
   padding: 16px 18px;
-  background: linear-gradient(135deg, rgba(0,59,122,0.12), rgba(0,112,209,0.08));
+  background: linear-gradient(
+    135deg,
+    rgba(0,59,122,0.12),
+    rgba(0,112,209,0.08)
+  );
   border: 1px solid rgba(0,59,122,0.15);
-  box-shadow: var(--shadow-mini);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.06);
 }
 
-/* Sidebar: radio pills */
-section[data-testid="stSidebar"] .stRadio > div{
-  gap: 6px;
-}
-section[data-testid="stSidebar"] .stRadio label{
-  border: 1px solid rgba(0,0,0,0.10);
-  border-radius: 12px;
-  padding: 8px 10px;
-  background: rgba(255,255,255,0.55);
-}
-section[data-testid="stSidebar"] .stRadio label:hover{
-  border-color: rgba(0,59,122,0.35);
-}
-
-/* Botones: institucional */
-.stButton > button{
-  border-radius: 12px !important;
-  border: 1px solid rgba(0,59,122,0.25) !important;
-}
-
-/* ===== Header Card: texto izq + logo der ===== */
+/* -------- HEADER INSTITUCIONAL -------- */
 .enacom-header-card{
   display:flex;
   align-items:center;
@@ -65,7 +51,7 @@ section[data-testid="stSidebar"] .stRadio label:hover{
   border: 1px solid rgba(0,0,0,0.06);
   border-radius: 14px;
   background: rgba(255,255,255,0.80);
-  box-shadow: 0 4px 18px rgba(0,0,0,0.06);
+  box-shadow: var(--shadow-mini);
 }
 
 .enacom-header-left .title{
@@ -73,7 +59,7 @@ section[data-testid="stSidebar"] .stRadio label:hover{
   font-weight: 800;
   line-height: 1.1;
   margin: 0;
-  color: #003b7a; /* azul ENACOM */
+  color: var(--enacom-blue);
 }
 
 .enacom-header-left .subtitle{
@@ -90,7 +76,103 @@ section[data-testid="stSidebar"] .stRadio label:hover{
 }
 
 .enacom-header-right img{
-  height: 58px;   /* ajustá 52–64 según gusto */
+  height: 58px;
   width: auto;
   object-fit: contain;
+}
+
+/* -------- BOTONES (INSTITUCIONAL) -------- */
+.stButton > button{
+  border-radius: 12px !important;
+  border: 1px solid rgba(0,59,122,0.25) !important;
+}
+
+/* -------- SIDEBAR: “radio pills” -------- */
+section[data-testid="stSidebar"] .stRadio > div{
+  gap: 6px;
+}
+
+section[data-testid="stSidebar"] .stRadio label{
+  border: 1px solid rgba(0,0,0,0.10);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,0.55);
+}
+
+section[data-testid="stSidebar"] .stRadio label:hover{
+  border-color: rgba(0,59,122,0.35);
+}
+
+/* ==============================
+   KPI CARDS (Inicio)
+   ============================== */
+.kpi-card{
+  border: 1px solid rgba(0,0,0,0.06);
+  background: rgba(255,255,255,0.75);
+  border-radius: 14px;
+  padding: 14px 14px;
+  box-shadow: var(--shadow-mini);
+}
+
+.kpi-title{
+  font-size: 0.85rem;
+  opacity: 0.8;
+  margin-bottom: 6px;
+}
+
+.kpi-value{
+  font-size: 1.6rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: var(--enacom-blue);
+}
+
+.kpi-sub{
+  margin-top: 6px;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+
+/* ==============================
+   TOP 5 CARDS (Inicio)
+   ============================== */
+.top-card{
+  border: 1px solid rgba(0,0,0,0.06);
+  background: var(--card-bg-soft);
+  border-radius: 14px;
+  padding: 12px 12px;
+  box-shadow: var(--shadow-mini);
+  height: 100%;
+}
+
+.top-rank{
+  font-size: 0.75rem;
+  opacity: 0.75;
+  margin-bottom: 6px;
+}
+
+.top-loc{
+  font-size: 0.95rem;
+  font-weight: 800;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+
+.top-meta{
+  font-size: 0.85rem;
+  opacity: 0.86;
+  line-height: 1.2;
+}
+
+.top-val{
+  font-size: 1.25rem;
+  font-weight: 900;
+  margin-top: 10px;
+  line-height: 1.1;
+}
+
+.top-pct{
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-top: 4px;
 }
