@@ -24,3 +24,152 @@ def ensure_tabla_maestra_loaded():
             st.session_state["tabla_maestra"] = load_tabla_maestra_from_db()
         except Exception as e:
             st.warning(f"No se pudo cargar tabla desde archivosdata/rni.db: {e}")
+
+def init_global_filters():
+    """Inicializa filtros globales en session_state."""
+    st.session_state.setdefault(
+        "global_filters",
+        {
+            "ccte": [],         # multi
+            "provincia": [],    # multi
+            "anio": "Todos",    # single
+        },
+    )
+
+
+def _extract_years(df: pd.DataFrame) -> list[int]:
+    """Obtiene años disponibles desde Fecha o FechaHora."""
+    years: list[int] = []
+    if df is None or df.empty:
+        return years
+
+    if "Fecha" in df.columns:
+        y = pd.to_datetime(df["Fecha"], dayfirst=True, errors="coerce").dt.year
+        years = sorted(y.dropna().astype(int).unique().tolist(), reverse=True)
+    elif "FechaHora" in df.columns:
+        y = pd.to_datetime(df["FechaHora"], errors="coerce").dt.year
+        years = sorted(y.dropna().astype(int).unique().tolist(), reverse=True)
+
+    return years
+
+
+def render_global_filters_sidebar(df: pd.DataFrame, sb=st.sidebar):
+    """Dibuja filtros globales y los guarda en session_state['global_filters']."""
+    init_global_filters()
+    gf = st.session_state["global_filters"]
+
+    sb.markdown("### 🌐 Filtros globales")
+
+    # CCTE
+    cctes = (
+        sorted(df["CCTE"].dropna().astype(str).unique().tolist())
+        if df is not None and not df.empty and "CCTE" in df.columns
+        else []
+    )
+    gf["ccte"] = sb.multiselect(
+        "CCTE",
+        cctes,
+        default=gf.get("ccte", []),
+        placeholder="Todos",
+        key="gf_ccte",
+    )
+
+    # Provincia
+    provs = (
+        sorted(df["Provincia"].dropna().astype(str).unique().tolist())
+        if df is not None and not df.empty and "Provincia" in df.columns
+        else []
+    )
+    gf["provincia"] = sb.multiselect(
+        "Provincia",
+        provs,
+        default=gf.get("provincia", []),
+        placeholder="Todas",
+        key="gf_provincia",
+    )
+
+    # Año
+    years = _extract_years(df)
+    opciones = ["Todos"] + [str(a) for a in years]
+
+    # Si quedó un año viejo guardado, lo reseteamos prolijo
+    anio_actual = gf.get("anio", "Todos")
+    if anio_actual not in opciones:
+        anio_actual = "Todos"
+
+    gf["anio"] = sb.selectbox(
+        "Año",
+        opciones,
+        index=opciones.index(anio_actual),
+        key="gf_anio",
+    )
+
+    st.session_state["global_filters"] = gf
+
+    # Mini resumen bonito
+    chips = []
+    if gf["ccte"]:
+        chips.append(f"CCTE: {', '.join(gf['ccte'])}")
+    if gf["provincia"]:
+        chips.append(f"Prov: {', '.join(gf['provincia'])}")
+    if gf["anio"] != "Todos":
+        chips.append(f"Año: {gf['anio']}")
+    if chips:
+        sb.caption(" · ".join(chips))
+    else:
+        sb.caption("Mostrando: todo")
+
+    # Botón reset
+    if sb.button("🔄 Reset filtros", use_container_width=True):
+        st.session_state["global_filters"] = {"ccte": [], "provincia": [], "anio": "Todos"}
+        # fuerza rerun sin importar versión
+        try:
+            st.rerun()
+        except Exception:
+            pass
+
+
+def get_df_filtrado_global(df: pd.DataFrame) -> pd.DataFrame:
+    """Devuelve df filtrado según session_state['global_filters']."""
+    init_global_filters()
+    gf = st.session_state["global_filters"]
+
+    if df is None or df.empty:
+        return df
+
+    out = df.copy()
+
+    # CCTE
+    if gf.get("ccte") and "CCTE" in out.columns:
+        out = out[out["CCTE"].astype(str).isin([str(x) for x in gf["ccte"]])]
+
+    # Provincia
+    if gf.get("provincia") and "Provincia" in out.columns:
+        out = out[out["Provincia"].astype(str).isin([str(x) for x in gf["provincia"]])]
+
+    # Año
+    anio = gf.get("anio", "Todos")
+    if anio != "Todos":
+        anio_int = int(anio)
+        if "Fecha" in out.columns:
+            yy = pd.to_datetime(out["Fecha"], dayfirst=True, errors="coerce").dt.year
+            out = out[yy == anio_int]
+        elif "FechaHora" in out.columns:
+            yy = pd.to_datetime(out["FechaHora"], errors="coerce").dt.year
+            out = out[yy == anio_int]
+
+    return out
+def global_filters_human_label() -> str:
+    """Texto corto tipo: 'Viendo: CCTE X · Prov Y · Año 2025' """
+    init_global_filters()
+    gf = st.session_state.get("global_filters", {"ccte": [], "provincia": [], "anio": "Todos"})
+
+    chips = []
+    if gf.get("ccte"):
+        chips.append(f"CCTE: {', '.join([str(x) for x in gf['ccte']])}")
+    if gf.get("provincia"):
+        chips.append(f"Prov: {', '.join([str(x) for x in gf['provincia']])}")
+    if gf.get("anio") and gf["anio"] != "Todos":
+        chips.append(f"Año: {gf['anio']}")
+
+    return "Viendo: " + (" · ".join(chips) if chips else "todo")

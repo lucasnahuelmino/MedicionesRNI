@@ -3,15 +3,15 @@ from __future__ import annotations
 
 import sqlite3
 from pathlib import Path
-from datetime import datetime
 
 import numpy as np
 import pandas as pd
 import streamlit as st
 
 
-# Intentamos tomar la misma DB y tabla que usa tu app.
-# Si por algún motivo cambia el import, caemos a defaults seguros.
+# ============================================================
+# DB: toma la ruta real si existe en sqlite_store, si no fallback
+# ============================================================
 try:
     from db.sqlite_store import DB_FILE as _DB_FILE, TABLE_NAME as _TABLE_NAME
     DB_FILE = Path(_DB_FILE)
@@ -21,6 +21,9 @@ except Exception:
     TABLE_NAME = "mediciones_rni"
 
 
+# ============================================================
+# Helpers DB
+# ============================================================
 def _table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
     q = "SELECT name FROM sqlite_master WHERE type='table' AND name=?;"
     cur = conn.execute(q, (table_name,))
@@ -36,129 +39,219 @@ def _safe_scalar(conn: sqlite3.Connection, sql: str, params: tuple = ()) -> int 
         return None
 
 
+# ============================================================
+# Parseo suelto SOLO para diagnóstico de “parseabilidad”
+# (No es para cálculo de horas; eso lo hace time_utils)
+# ============================================================
 def _parse_datetime_loose(fecha: pd.Series, hora: pd.Series) -> pd.Series:
     """
     Devuelve datetime (o NaT) parseando formatos típicos:
     Fecha: '20/03/2025', '2025-03-20', etc.
     Hora: '10:08:09 a.m.', '10:08:09', '22:10', etc.
     """
-    f = pd.to_datetime(fecha.astype(str), dayfirst=True, errors="coerce")
+    if fecha is None or hora is None:
+        return pd.Series(pd.NaT)
 
-    # Hora: normalizamos variantes "a.m." / "p.m."
-    h_raw = hora.astype(str).str.strip().str.lower()
-    # Limpieza suave
+    f = pd.to_datetime(fecha.astype("string"), dayfirst=True, errors="coerce")
+
+    h_raw = hora.astype("string").fillna("").str.strip().str.lower()
+
+    # Limpieza suave: "a.m." -> "am", "p.m." -> "pm", quita puntos
     h_norm = (
-        h_raw.replace({"nan": ""})
-        .str.replace(".", "", regex=False)     # a.m. -> am
+        h_raw
+        .str.replace(r"\s+", " ", regex=True)
+        .str.replace(".", "", regex=False)
         .str.replace(" a m", " am", regex=False)
         .str.replace(" p m", " pm", regex=False)
     )
 
-    # Probamos parsear hora en datetime (solo hora)
-    # Si viene con am/pm, pandas lo entiende bastante bien.
+    # parse de hora (Pandas suele bancar "10:08:09 am")
     h = pd.to_datetime(h_norm, errors="coerce")
 
-    # Armamos datetime combinando fecha + hora
-    # Usamos strings ISO para evitar apply() pesado
+    # Combinar ISO string (sin apply)
     fecha_iso = f.dt.strftime("%Y-%m-%d")
     hora_iso = h.dt.strftime("%H:%M:%S")
-
     combo = pd.to_datetime(fecha_iso + " " + hora_iso, errors="coerce")
+
+    # Si fecha u hora no parsean -> NaT
+    combo = combo.where(f.notna() & h.notna(), pd.NaT)
     return combo
 
 
+# ============================================================
+# Filtros globales (opcionales). Si no existen, no rompe.
+# ============================================================
+def _try_get_global_filters() -> dict:
+    """
+    Si tenés state.py con filtros globales, los levanta.
+    Si no existe o falla, devuelve filtros vacíos.
+    """
+    try:
+        import state  # noqa
+        if hasattr(state, "init_global_filters"):
+            state.init_global_filters()
+        gf = st.session_state.get("global_filters", {"ccte": [], "provincia": [], "anio": "Todos"})
+        return gf if isinstance(gf, dict) else {"ccte": [], "provincia": [], "anio": "Todos"}
+    except Exception:
+        return {"ccte": [], "provincia": [], "anio": "Todos"}
+
+
+def _filters_caption() -> str:
+    gf = _try_get_global_filters()
+    chips = []
+    if gf.get("ccte"):
+        chips.append(f"CCTE: {', '.join([str(x) for x in gf['ccte']])}")
+    if gf.get("provincia"):
+        chips.append(f"Prov: {', '.join([str(x) for x in gf['provincia']])}")
+    if gf.get("anio") and gf["anio"] != "Todos":
+        chips.append(f"Año: {gf['anio']}")
+    return " · ".join(chips) if chips else "Mostrando: todo"
+
+
+def _sql_where_from_global_filters() -> tuple[str, tuple]:
+    """
+    Arma WHERE SQL + params según filtros globales (si existen).
+    Compatible con columnas textuales.
+    """
+    gf = _try_get_global_filters()
+
+    clauses = []
+    params: list = []
+
+    # CCTE
+    cctes = gf.get("ccte") or []
+    if cctes:
+        placeholders = ",".join(["?"] * len(cctes))
+        clauses.append(f"CCTE IN ({placeholders})")
+        params.extend([str(x) for x in cctes])
+
+    # Provincia
+    provs = gf.get("provincia") or []
+    if provs:
+        placeholders = ",".join(["?"] * len(provs))
+        clauses.append(f"Provincia IN ({placeholders})")
+        params.extend([str(x) for x in provs])
+
+    # Año (si Fecha está dd/mm/yyyy o yyyy-mm-dd)
+    anio = gf.get("anio", "Todos")
+    if anio != "Todos":
+        # Intento simple: matchear por substring del año
+        # dd/mm/yyyy -> termina en yyyy
+        # yyyy-mm-dd -> empieza con yyyy
+        clauses.append("(Fecha LIKE ? OR Fecha LIKE ?)")
+        params.extend([f"%/{anio}", f"{anio}-%"])
+
+    where = ""
+    if clauses:
+        where = "WHERE " + " AND ".join(clauses)
+
+    return where, tuple(params)
+
+
+# ============================================================
+# UI principal
+# ============================================================
 def render_diagnostico():
     st.header("🧪 Diagnóstico / Salud de datos")
+    st.caption(_filters_caption())
 
     if not DB_FILE.exists():
         st.warning(f"No encuentro la base en: {DB_FILE}")
         return
 
-    # --- Conexión DB ---
     conn = sqlite3.connect(str(DB_FILE))
     try:
         if not _table_exists(conn, TABLE_NAME):
             st.warning(f"La tabla '{TABLE_NAME}' no existe dentro de {DB_FILE.name}.")
             return
 
+        where, params = _sql_where_from_global_filters()
+
         # --- KPIs SQL (baratos) ---
-        total_rows = _safe_scalar(conn, f"SELECT COUNT(*) FROM {TABLE_NAME};") or 0
-        if total_rows == 0:
-            st.info("La tabla existe pero está vacía.")
+        total_rows = _safe_scalar(conn, f"SELECT COUNT(*) FROM {TABLE_NAME} {where};", params) or 0
+        if int(total_rows) == 0:
+            st.info("La tabla existe, pero con los filtros actuales quedó vacía.")
             return
 
-        distinct_loc = _safe_scalar(conn, f"SELECT COUNT(DISTINCT Localidad) FROM {TABLE_NAME};") or 0
-        distinct_prov = _safe_scalar(conn, f"SELECT COUNT(DISTINCT Provincia) FROM {TABLE_NAME};") or 0
-        distinct_ccte = _safe_scalar(conn, f"SELECT COUNT(DISTINCT CCTE) FROM {TABLE_NAME};") or 0
+        distinct_loc = _safe_scalar(conn, f"SELECT COUNT(DISTINCT Localidad) FROM {TABLE_NAME} {where};", params) or 0
+        distinct_prov = _safe_scalar(conn, f"SELECT COUNT(DISTINCT Provincia) FROM {TABLE_NAME} {where};", params) or 0
+        distinct_ccte = _safe_scalar(conn, f"SELECT COUNT(DISTINCT CCTE) FROM {TABLE_NAME} {where};", params) or 0
 
-        # FechaCarga suele ser TEXT. Si está en ISO, MAX funciona. Si no, lo mostramos como venga.
-        max_fechacarga = _safe_scalar(conn, f"SELECT MAX(FechaCarga) FROM {TABLE_NAME};")
+        # FechaCarga MAX (si el formato no es ISO igual sirve como “indicador”)
+        max_fechacarga = _safe_scalar(conn, f"SELECT MAX(FechaCarga) FROM {TABLE_NAME} {where};", params)
 
-        # Conteos de no-null (SQL)
-        nn_fecha = _safe_scalar(conn, f"SELECT COUNT(Fecha) FROM {TABLE_NAME} WHERE Fecha IS NOT NULL AND TRIM(Fecha)<>'';") or 0
-        nn_hora = _safe_scalar(conn, f"SELECT COUNT(Hora) FROM {TABLE_NAME} WHERE Hora IS NOT NULL AND TRIM(Hora)<>'';") or 0
+        # Conteos no vacíos (SQL)
+        nn_fecha = _safe_scalar(
+            conn,
+            f"SELECT COUNT(*) FROM {TABLE_NAME} {where} AND Fecha IS NOT NULL AND TRIM(Fecha)<>'';"
+            if where else
+            f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE Fecha IS NOT NULL AND TRIM(Fecha)<>'';"
+        , params) or 0
+
+        nn_hora = _safe_scalar(
+            conn,
+            f"SELECT COUNT(*) FROM {TABLE_NAME} {where} AND Hora IS NOT NULL AND TRIM(Hora)<>'';"
+            if where else
+            f"SELECT COUNT(*) FROM {TABLE_NAME} WHERE Hora IS NOT NULL AND TRIM(Hora)<>'';"
+        , params) or 0
+
         nn_latlon = _safe_scalar(
             conn,
             f"""
             SELECT COUNT(*)
             FROM {TABLE_NAME}
-            WHERE Lat IS NOT NULL AND TRIM(Lat)<>'' AND Lon IS NOT NULL AND TRIM(Lon)<>'';
-            """
+            {where}
+            {"AND" if where else "WHERE"} Lat IS NOT NULL AND TRIM(Lat)<>'' AND Lon IS NOT NULL AND TRIM(Lon)<>'';
+            """,
+            params
         ) or 0
 
-        # “Señales” típicas de hora con AM/PM (SQL)
         nn_ampm = _safe_scalar(
             conn,
             f"""
             SELECT COUNT(*)
             FROM {TABLE_NAME}
-            WHERE Hora IS NOT NULL
+            {where}
+            {"AND" if where else "WHERE"} Hora IS NOT NULL
               AND (LOWER(Hora) LIKE '%a.m.%'
                    OR LOWER(Hora) LIKE '%p.m.%'
                    OR LOWER(Hora) LIKE '% am%'
                    OR LOWER(Hora) LIKE '% pm%');
-            """
+            """,
+            params
         ) or 0
 
-        # --- Muestra chica para validar “parseabilidad real” (sin matar RAM) ---
-        SAMPLE_N = 8000  # ajustable
-        sample = pd.read_sql(
-            f"""
+        # --- Muestra chica (para parseabilidad real sin matar RAM) ---
+        SAMPLE_N = 8000
+        sample_sql = f"""
             SELECT Fecha, Hora, Lat, Lon, Resultado
             FROM {TABLE_NAME}
-            WHERE (Fecha IS NOT NULL OR Hora IS NOT NULL OR Lat IS NOT NULL OR Lon IS NOT NULL OR Resultado IS NOT NULL)
+            {where}
             LIMIT {SAMPLE_N};
-            """,
-            conn
-        )
+        """
+        sample = pd.read_sql(sample_sql, conn, params=params)
 
-        # Parseos (muestra)
         if not sample.empty:
-            dt = _parse_datetime_loose(sample.get("Fecha", pd.Series(dtype=object)),
-                                       sample.get("Hora", pd.Series(dtype=object)))
+            dt = _parse_datetime_loose(sample.get("Fecha"), sample.get("Hora"))
             pct_dt_ok = float(dt.notna().mean() * 100.0)
 
-            lat = pd.to_numeric(sample.get("Lat", pd.Series(dtype=object)), errors="coerce")
-            lon = pd.to_numeric(sample.get("Lon", pd.Series(dtype=object)), errors="coerce")
+            lat = pd.to_numeric(sample.get("Lat"), errors="coerce")
+            lon = pd.to_numeric(sample.get("Lon"), errors="coerce")
 
-            # Aceptamos coordenadas negativas (Argentina) o positivas (algunas cargas vienen así)
+            # rango amplio para no “castigar” cargas que vengan positivas
             lat_ok = lat.notna() & ((lat.between(-60, -15)) | (lat.abs().between(15, 60)))
             lon_ok = lon.notna() & ((lon.between(-80, -40)) | (lon.abs().between(40, 80)))
             pct_coords_ok = float((lat_ok & lon_ok).mean() * 100.0)
 
-            # Resultado numérico (muestra)
-            res = pd.to_numeric(sample.get("Resultado", pd.Series(dtype=object)), errors="coerce")
+            res = pd.to_numeric(sample.get("Resultado"), errors="coerce")
             pct_res_ok = float(res.notna().mean() * 100.0)
 
-            # Duplicados de coordenadas (muestra) -> puede inflar JSON del mapa si son MUCHÍSIMOS
             dup_coords = 0
-            if lat.notna().any() and lon.notna().any():
-                tmp = pd.DataFrame({"lat": lat.round(6), "lon": lon.round(6)}).dropna()
+            tmp = pd.DataFrame({"lat": lat.round(6), "lon": lon.round(6)}).dropna()
+            if not tmp.empty:
                 dup_coords = int(tmp.duplicated().sum())
         else:
-            pct_dt_ok = 0.0
-            pct_coords_ok = 0.0
-            pct_res_ok = 0.0
+            pct_dt_ok = pct_coords_ok = pct_res_ok = 0.0
             dup_coords = 0
 
         # --- UI KPIs ---
@@ -180,7 +273,6 @@ def render_diagnostico():
         c11.metric("Resultado numérico (muestra)", f"{pct_res_ok:.1f}%")
         c12.metric("Duplicados coords (muestra)", f"{dup_coords:,}".replace(",", "."))
 
-        # Última carga
         if max_fechacarga:
             st.caption(f"🕒 Última FechaCarga detectada (MAX): **{max_fechacarga}**")
         else:
@@ -192,19 +284,21 @@ def render_diagnostico():
         st.subheader("🔥 Top localidades por pico (máximo)")
 
         top_sql = f"""
-        SELECT
-          CCTE,
-          Provincia,
-          Localidad,
-          MAX(CAST(Resultado AS REAL)) AS max_vm,
-          COUNT(*) AS puntos
-        FROM {TABLE_NAME}
-        WHERE Resultado IS NOT NULL AND TRIM(Resultado)<>''
-        GROUP BY CCTE, Provincia, Localidad
-        ORDER BY max_vm DESC
-        LIMIT 10;
+            SELECT
+              CCTE,
+              Provincia,
+              Localidad,
+              MAX(CAST(Resultado AS REAL)) AS max_vm,
+              COUNT(*) AS puntos
+            FROM {TABLE_NAME}
+            {where}
+            {"AND" if where else "WHERE"} Resultado IS NOT NULL AND TRIM(Resultado)<>''
+
+            GROUP BY CCTE, Provincia, Localidad
+            ORDER BY max_vm DESC
+            LIMIT 10;
         """
-        top = pd.read_sql(top_sql, conn)
+        top = pd.read_sql(top_sql, conn, params=params)
         if top.empty:
             st.info("No pude calcular el top (Resultado vacío o no numérico).")
         else:
@@ -217,26 +311,25 @@ def render_diagnostico():
 
         st.markdown("---")
 
-        # --- Señales de problemas (compacto) ---
+        # --- Señales de problemas ---
         st.subheader("🧯 Señales de problemas comunes")
 
-        problems = []
-        problems.append(("Filas totales", int(total_rows)))
-        problems.append(("Fecha vacía", int(total_rows - nn_fecha)))
-        problems.append(("Hora vacía", int(total_rows - nn_hora)))
-        problems.append(("Lat/Lon vacías", int(total_rows - nn_latlon)))
-        problems.append(("Hora con AM/PM", int(nn_ampm)))
-
+        problems = [
+            ("Filas totales", int(total_rows)),
+            ("Fecha vacía", int(total_rows - nn_fecha)),
+            ("Hora vacía", int(total_rows - nn_hora)),
+            ("Lat/Lon vacías", int(total_rows - nn_latlon)),
+            ("Hora con AM/PM", int(nn_ampm)),
+        ]
         dfp = pd.DataFrame(problems, columns=["Señal", "Conteo"]).sort_values("Conteo", ascending=False)
         st.dataframe(dfp, width="stretch", hide_index=True)
 
-        # Mini nota útil
         with st.expander("🧠 Qué significa esto (rápido)", expanded=False):
             st.write(
                 "- **FechaHora parseable baja** suele venir de Hora tipo `10:08:09 a.m.` o textos raros.\n"
-                "- **Lat/Lon vacías** → mapa explota o queda vacío.\n"
-                "- **Muchos duplicados de coordenadas** no está “mal”, pero puede inflar el JSON del mapa si hay miles y miles.\n"
-                "- Si querés precisión en parseo: normalizamos al cargar y guardamos en DB en formato ISO."
+                "- **Lat/Lon vacías** → mapa queda vacío o pesado.\n"
+                "- **Muchos duplicados** no está “mal”, pero puede inflar el JSON del mapa si hay miles.\n"
+                "- Para el futuro: al cargar, guardar `FechaHora` en ISO en DB evita dolores de 2026."
             )
 
     finally:

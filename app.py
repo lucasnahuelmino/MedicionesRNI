@@ -11,7 +11,7 @@ import streamlit as st
 import plotly.express as px
 
 from config import CSS_PATH, ASSETS
-from state import init_session_state, ensure_tabla_maestra_loaded
+from state import (init_session_state, ensure_tabla_maestra_loaded, render_global_filters_sidebar, get_df_filtrado_global,)
 
 from sections.sidebar_upload import render_sidebar
 from sections.resumen_general import render_resumen_general
@@ -68,6 +68,11 @@ st.markdown(header_html, unsafe_allow_html=True)
 init_session_state()
 ensure_tabla_maestra_loaded()
 
+# 🌐 Filtros globales (aplican a TODA la app)
+df_all = st.session_state.get("tabla_maestra", pd.DataFrame())
+render_global_filters_sidebar(df_all, sb=st.sidebar)
+st.sidebar.markdown("---")
+
 
 # ============================================================
 # 🧭 NAV en Sidebar
@@ -109,7 +114,7 @@ sb.markdown("---")
 # ============================================================
 def render_inicio():
     st.markdown("## 🏠 Inicio")
-    df = st.session_state.get("tabla_maestra", pd.DataFrame()).copy()
+    df = get_df_filtrado_global(st.session_state["tabla_maestra"]).copy()
 
     if df.empty:
         st.info("Aún no hay datos cargados. Usá **📥 Carga / Administración** en el sidebar para importar mediciones.")
