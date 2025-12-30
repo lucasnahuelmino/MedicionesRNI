@@ -1,8 +1,10 @@
-/* ==============================
-   ENACOM Dashboard Modern (mid)
-   ============================== */
+/* ============================================================
+   ENACOM Dashboard Modern (mid) — style.css
+   ============================================================ */
 
-/* -------- TOKENS / PALETA -------- */
+/* -----------------------------
+   TOKENS / PALETA / SOMBRAS
+   ----------------------------- */
 :root{
   --enacom-blue: #003b7a;
   --enacom-accent: #0070d1;
@@ -16,29 +18,29 @@
   --shadow-mini: 0 4px 18px rgba(0,0,0,0.06);
 }
 
-/* -------- CARDS GENERALES -------- */
+/* -----------------------------
+   CARDS GENERALES
+   ----------------------------- */
 .en-card{
   background: var(--card-bg-strong);
   border: 1px solid var(--card-border);
   border-radius: 16px;
   box-shadow: var(--shadow-soft);
-  padding: 14px 14px;
+  padding: 14px;
 }
 
-/* “Hero” suave ENACOM */
+/* Hero suave ENACOM */
 .en-hero{
   border-radius: 18px;
   padding: 16px 18px;
-  background: linear-gradient(
-    135deg,
-    rgba(0,59,122,0.12),
-    rgba(0,112,209,0.08)
-  );
+  background: linear-gradient(135deg, rgba(0,59,122,0.12), rgba(0,112,209,0.08));
   border: 1px solid rgba(0,59,122,0.15);
   box-shadow: 0 3px 12px rgba(0,0,0,0.06);
 }
 
-/* -------- HEADER INSTITUCIONAL -------- */
+/* -----------------------------
+   HEADER INSTITUCIONAL
+   ----------------------------- */
 .enacom-header-card{
   display:flex;
   align-items:center;
@@ -46,7 +48,7 @@
   gap:16px;
 
   padding:16px 18px;
-  margin: 10px 0 18px 0;
+  margin: 10px 0 18px;
 
   border: 1px solid rgba(0,0,0,0.06);
   border-radius: 14px;
@@ -81,13 +83,17 @@
   object-fit: contain;
 }
 
-/* -------- BOTONES (INSTITUCIONAL) -------- */
+/* -----------------------------
+   BOTONES (INSTITUCIONAL)
+   ----------------------------- */
 .stButton > button{
   border-radius: 12px !important;
   border: 1px solid rgba(0,59,122,0.25) !important;
 }
 
-/* -------- SIDEBAR: “radio pills” -------- */
+/* -----------------------------
+   SIDEBAR: radio pills
+   ----------------------------- */
 section[data-testid="stSidebar"] .stRadio > div{
   gap: 6px;
 }
@@ -103,27 +109,27 @@ section[data-testid="stSidebar"] .stRadio label:hover{
   border-color: rgba(0,59,122,0.35);
 }
 
-/* ==============================
+/* ============================================================
    KPI CARDS (Inicio)
-   ============================== */
+   ============================================================ */
 .kpi-card{
   border: 1px solid rgba(0,0,0,0.06);
   background: rgba(255,255,255,0.75);
   border-radius: 14px;
-  padding: 14px 14px;
+  padding: 14px;
   box-shadow: var(--shadow-mini);
 }
 
 .kpi-title{
   font-size: 0.85rem;
-  opacity: 0.8;
+  opacity: 0.80;
   margin-bottom: 6px;
 }
 
 .kpi-value{
-  font-size: 1.6rem;
+  font-size: 1.60rem;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.10;
   color: var(--enacom-blue);
 }
 
@@ -133,14 +139,54 @@ section[data-testid="stSidebar"] .stRadio label:hover{
   opacity: 0.85;
 }
 
-/* ==============================
+/* ============================================================
+   KPI MINI (por centro/CCTE) — centradas + misma altura
+   ============================================================ */
+.kpi-card.kpi-mini{
+  padding: 10px;
+  border-radius: 12px;
+
+  min-height: 126px;           /* uniforme */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+
+  text-align: center;          /* centrado total */
+}
+
+.kpi-card.kpi-mini .kpi-title{
+  font-size: 0.78rem;
+  margin-bottom: 4px;
+  opacity: 0.80;
+  line-height: 1.15;
+
+  /* si un centro es largo, que no rompa la card */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.kpi-card.kpi-mini .kpi-value{
+  font-size: 1.15rem;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.kpi-card.kpi-mini .kpi-sub{
+  font-size: 0.75rem;
+  margin-top: 6px;
+  opacity: 0.88;
+  line-height: 1.20;
+}
+
+/* ============================================================
    TOP 5 CARDS (Inicio)
-   ============================== */
+   ============================================================ */
 .top-card{
   border: 1px solid rgba(0,0,0,0.06);
   background: var(--card-bg-soft);
   border-radius: 14px;
-  padding: 12px 12px;
+  padding: 12px;
   box-shadow: var(--shadow-mini);
   height: 100%;
 }
@@ -154,25 +200,42 @@ section[data-testid="stSidebar"] .stRadio label:hover{
 .top-loc{
   font-size: 0.95rem;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1.10;
   margin-bottom: 6px;
 }
 
 .top-meta{
   font-size: 0.85rem;
   opacity: 0.86;
-  line-height: 1.2;
+  line-height: 1.20;
 }
 
 .top-val{
   font-size: 1.25rem;
   font-weight: 900;
   margin-top: 10px;
-  line-height: 1.1;
+  line-height: 1.10;
 }
 
 .top-pct{
-  font-size: 0.9rem;
-  opacity: 0.9;
+  font-size: 0.90rem;
+  opacity: 0.90;
   margin-top: 4px;
+}
+
+/* ============================================================
+   Streamlit metrics: más chicas + wrap
+   (evita "Comodoro Riv..." y similares)
+   ============================================================ */
+div[data-testid="stMetricLabel"]{
+  font-size: 0.85rem !important;
+}
+
+div[data-testid="stMetricValue"]{
+  font-size: 1.35rem !important;   /* 1.25–1.45 */
+  line-height: 1.10 !important;
+
+  white-space: normal !important;  /* permite bajar de línea */
+  overflow: visible !important;
+  text-overflow: clip !important;
 }

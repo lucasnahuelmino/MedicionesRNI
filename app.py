@@ -11,7 +11,12 @@ import streamlit as st
 import plotly.express as px
 
 from config import CSS_PATH, ASSETS
-from state import (init_session_state, ensure_tabla_maestra_loaded, render_global_filters_sidebar, get_df_filtrado_global,)
+from state import (
+    init_session_state,
+    ensure_tabla_maestra_loaded,
+    render_global_filters_sidebar,
+    get_df_filtrado_global,
+)
 
 from sections.sidebar_upload import render_sidebar
 from sections.resumen_general import render_resumen_general
@@ -24,7 +29,7 @@ from sections.diagnostico import render_diagnostico
 
 
 # ---------------------- CONFIG (SIEMPRE ARRIBA) ----------------------
-st.set_page_config(page_title="Base de datos RNI - ENACOM v3.2", layout="wide")
+st.set_page_config(page_title="Base de datos RNI - ENACOM", layout="wide")
 
 
 # ---------------------- ESTILO ----------------------
@@ -68,7 +73,7 @@ st.markdown(header_html, unsafe_allow_html=True)
 init_session_state()
 ensure_tabla_maestra_loaded()
 
-# 🌐 Filtros globales (aplican a TODA la app)
+
 df_all = st.session_state.get("tabla_maestra", pd.DataFrame())
 render_global_filters_sidebar(df_all, sb=st.sidebar)
 st.sidebar.markdown("---")
@@ -79,7 +84,6 @@ st.sidebar.markdown("---")
 # ============================================================
 st.session_state.setdefault("page", "Inicio")
 
-# (compat) si quedó "Exportar" en session_state de versiones anteriores
 if st.session_state.get("page") == "Exportar":
     st.session_state["page"] = "Gestión"
 
@@ -89,20 +93,20 @@ def goto(page_name: str):
 
 
 sb = st.sidebar
-sb.markdown("### 🧭 Navegación")
+sb.markdown("### Navegación")
 
 colA, colB = sb.columns(2)
 with colA:
-    sb.button("🏠 Inicio", width='stretch', on_click=goto, args=("Inicio",))
-    sb.button("📊 Resumen de localidades", width='stretch', on_click=goto, args=("Resumen",))
-    sb.button("📈 Gráficos", width='stretch', on_click=goto, args=("Gráficos",))
+    sb.button("Inicio", width='stretch', on_click=goto, args=("Inicio",))
+    sb.button("Resumen de localidades", width='stretch', on_click=goto, args=("Resumen",))
+    sb.button("Gráficos", width='stretch', on_click=goto, args=("Gráficos",))
 with colB:
-    sb.button("🧩 Gestión de localidades", width='stretch', on_click=goto, args=("Gestión",))
-    sb.button("🧪 Diagnóstico", width='stretch', on_click=goto, args=("Diagnóstico",))
+    sb.button("Gestión de localidades", width='stretch', on_click=goto, args=("Gestión",))
+    sb.button("Diagnóstico", width='stretch', on_click=goto, args=("Diagnóstico",))
 
 sb.markdown("---")
 
-with sb.expander("📥 Carga / Administración de excels de mediciones", expanded=False):
+with sb.expander("Carga / Administración de nuevas mediciones", expanded=False):
     # se renderiza dentro del expander (aunque internamente uses st.*)
     render_sidebar(sb=st)
 
@@ -120,7 +124,6 @@ def render_inicio():
         st.info("Aún no hay datos cargados. Usá **📥 Carga / Administración** en el sidebar para importar mediciones.")
         return
 
-    # Resultado numérico
     df["Resultado"] = pd.to_numeric(df.get("Resultado", np.nan), errors="coerce")
 
     total_reg = len(df)
@@ -134,7 +137,6 @@ def render_inicio():
         if _fc.notna().any():
             ultima_carga = _fc.max()
 
-    # Máximo absoluto (una fila)
     max_row = None
     max_val = None
     if df["Resultado"].notna().any():
@@ -142,7 +144,6 @@ def render_inicio():
         max_row = df.loc[i]
         max_val = max_row["Resultado"]
 
-    # KPI grid
     c1, c2, c3, c4 = st.columns(4)
 
     def kpi(col, title, value, sub=""):
@@ -160,15 +161,93 @@ def render_inicio():
     kpi(c1, "Registros totales", f"{total_reg:,}".replace(",", "."), "Puntos medidos en la tabla")
     kpi(c2, "Localidades", f"{total_localidades:,}".replace(",", "."), "Cobertura territorial")
     kpi(c3, "Provincias", f"{total_provincias:,}".replace(",", "."), "Diversidad geográfica")
-    kpi(
-        c4,
-        "CCTEs",
-        f"{total_ccte:,}".replace(",", "."),
+    kpi(c4, "CCTEs", f"{total_ccte:,}".replace(",", "."),
         f"Última carga: {ultima_carga.strftime('%d/%m/%Y %H:%M') if ultima_carga else 'N/D'}",
     )
+    st.markdown("---")
 
-    st.markdown("")
+    # ============================================================
+    # ✅ KPI mini por CCTE (ordenado) — BA y CABA siempre
+    # ============================================================
+    st.subheader("🏢 Mediciones por Centro de Comprobación Técnica de Emisiones")
 
+    if "CCTE" in df.columns:
+        base = df.copy()
+        base["CCTE"] = base["CCTE"].astype(str)
+        
+                
+        FIJOS = ["Buenos Aires", "CABA"]
+        
+        conteo = (
+            base["CCTE"].dropna().astype(str).str.strip()
+            .value_counts()
+            .to_dict()
+        )
+
+        cctes_unicos = {c.strip() for c in base["CCTE"].dropna().astype(str).tolist() if c.strip()}
+        for f in FIJOS:
+            cctes_unicos.add(f)
+
+        cctes_ordenados = sorted(
+            list(cctes_unicos),
+            key=lambda x: (-conteo.get(x, 0), str(x).lower())
+        )
+
+        CCTE_TARJETAS = cctes_ordenados[:7]
+
+        def kpi_mini(col, title, value, sub_html=""):
+            col.markdown(
+                f"""
+                <div class="kpi-card kpi-mini">
+                  <div class="kpi-title">{title}</div>
+                  <div class="kpi-value">{value}</div>
+                  <div class="kpi-sub">{sub_html}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+        base["Resultado"] = pd.to_numeric(base.get("Resultado", np.nan), errors="coerce")
+
+        def ccte_card(col, ccte_name: str):
+            
+            g = base[base["CCTE"].astype(str).str.strip().str.lower() == str(ccte_name).strip().lower()].copy()
+
+            puntos = int(len(g))
+
+            pico_vm = None
+            pico_pct = None
+            pico_loc = "N/D"
+
+            if puntos > 0 and g["Resultado"].notna().any():
+                j = g["Resultado"].idxmax()
+                rmax = g.loc[j]
+                pico_vm = float(rmax["Resultado"]) if pd.notna(rmax["Resultado"]) else None
+                pico_pct = (pico_vm ** 2) / 3770 / 0.20021 * 100 if pico_vm is not None else None
+                pico_loc = str(rmax.get("Localidad", "N/D"))
+
+            
+            vm_txt = f"{pico_vm:.2f} V/m" if pico_vm is not None else "—"
+            pct_txt = f"{pico_pct:.2f} %" if pico_pct is not None else "—"
+
+            sub = f"{vm_txt} · {pct_txt}<br><span style='opacity:.85'>{pico_loc}</span>"
+
+            kpi_mini(
+                col,
+                f"{ccte_name}",
+                f"{puntos:,}".replace(",", "."),
+                sub,
+            )
+
+        cols = st.columns(7)
+        for i, ccte_name in enumerate(CCTE_TARJETAS[:7]):
+            ccte_card(cols[i], ccte_name)
+
+    else:
+        st.info("No hay columna CCTE para armar KPIs por centro.")
+
+    st.markdown("---")
+     
     # ------------------- Destacado del máximo -------------------
     if max_row is not None and pd.notna(max_val):
         localidad = max_row.get("Localidad", "N/D")
@@ -193,12 +272,11 @@ def render_inicio():
         df_toploc = df.dropna(subset=["Resultado", "Localidad"]).copy()
 
         if not df_toploc.empty:
-            # 1 fila por Localidad: la del mayor Resultado
+
             idx = df_toploc.groupby("Localidad")["Resultado"].idxmax()
             top_loc = df_toploc.loc[idx].copy()
             top_loc = top_loc.sort_values("Resultado", ascending=False).head(5)
 
-            # % + redondeos
             top_loc["Resultado %"] = (top_loc["Resultado"] ** 2) / 3770 / 0.20021 * 100
             top_loc["Resultado %"] = pd.to_numeric(top_loc["Resultado %"], errors="coerce").round(2)
             top_loc["Resultado"] = pd.to_numeric(top_loc["Resultado"], errors="coerce").round(2)
@@ -227,7 +305,6 @@ def render_inicio():
 
                 cols[i - 1].markdown(card_html, unsafe_allow_html=True)
 
-            # (opcional) tabla debajo, por si querés “detalle rápido”
             with st.expander("Ver detalle en tabla", expanded=False):
                 top_show = top_loc.copy().rename(columns={"Resultado": "Resultado V/m"})
                 cols_show = [
@@ -270,13 +347,13 @@ elif page == "Gráficos":
     render_graficos()
 
 elif page == "Gestión":
-    # Un solo ctx, una sola verdad
+
     ctx = render_gestion_localidades()
 
     tabs = st.tabs(["📌 Vista", "🗺️ Mapa", "✏️ Editar", "🖨️ Exportar"])
 
     with tabs[0]:
-        # render_gestion_localidades ya pinta su UI principal
+
         st.caption("")
 
     with tabs[1]:
@@ -296,7 +373,6 @@ elif page == "Gestión":
 
 elif page == "Diagnóstico":
     render_diagnostico()
-
 
 # ---------------------- FOOTER ----------------------
 footer_html = """
