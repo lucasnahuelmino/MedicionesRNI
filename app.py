@@ -75,8 +75,6 @@ ensure_tabla_maestra_loaded()
 
 
 df_all = st.session_state.get("tabla_maestra", pd.DataFrame())
-render_global_filters_sidebar(df_all, sb=st.sidebar)
-st.sidebar.markdown("---")
 
 
 # ============================================================
@@ -84,34 +82,43 @@ st.sidebar.markdown("---")
 # ============================================================
 st.session_state.setdefault("page", "Inicio")
 
+
 if st.session_state.get("page") == "Exportar":
     st.session_state["page"] = "Gestión"
 
-
 def goto(page_name: str):
     st.session_state["page"] = page_name
-
 
 sb = st.sidebar
 sb.markdown("### Navegación")
 
 colA, colB = sb.columns(2)
 with colA:
-    sb.button("Inicio", width='stretch', on_click=goto, args=("Inicio",))
-    sb.button("Resumen de localidades", width='stretch', on_click=goto, args=("Resumen",))
-    sb.button("Gráficos", width='stretch', on_click=goto, args=("Gráficos",))
+    sb.button("Inicio", use_container_width=True, on_click=goto, args=("Inicio",))
+    sb.button("Resumen de localidades", use_container_width=True, on_click=goto, args=("Resumen",))
+    sb.button("Gráficos y estadísticas", use_container_width=True, on_click=goto, args=("Gráficos",))
 with colB:
-    sb.button("Gestión de localidades", width='stretch', on_click=goto, args=("Gestión",))
-    sb.button("Diagnóstico", width='stretch', on_click=goto, args=("Diagnóstico",))
+    sb.button("Gestión de localidades", use_container_width=True, on_click=goto, args=("Gestión",))
+    sb.button("Diagnóstico de localidades", use_container_width=True, on_click=goto, args=("Diagnóstico",))
 
 sb.markdown("---")
 
-with sb.expander("Carga / Administración de nuevas mediciones", expanded=False):
-    # se renderiza dentro del expander (aunque internamente uses st.*)
+# ============================================================
+# 🌐 Filtros globales (expander)
+# ============================================================
+exp_filtros = sb.expander("Filtros de localidades", expanded=False)
+render_global_filters_sidebar(df_all, sb=exp_filtros)
+
+sb.markdown("---")
+
+# ============================================================
+# 📥 Carga / Administración (expander)
+# ============================================================
+exp_carga = sb.expander("Carga de archivos", expanded=False)
+with exp_carga:
     render_sidebar(sb=st)
 
 sb.markdown("---")
-
 
 # ============================================================
 # 🏠 INICIO
