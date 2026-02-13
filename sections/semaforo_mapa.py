@@ -29,7 +29,6 @@ def render_semaforo_global(df):
         use_container_width=True,
     )
 
-
 # ============================================================
 # 🗺️ FUNCIONES AUXILIARES
 # ============================================================
