@@ -1,23 +1,63 @@
-import numpy as np
+import sqlite3
 import pandas as pd
 import folium
-from folium.plugins import MarkerCluster
 import streamlit as st
 from streamlit_folium import st_folium
+
+
+# ============================================================
+# 🔌 CARGA DESDE SQLITE
+# ============================================================
+
+def load_mediciones_from_db():
+
+    DB_PATH = "archivosdata/rni.db"
+
+    try:
+        conn = sqlite3.connect(DB_PATH)
+
+        query = """
+            SELECT
+                Lat,
+                Lon,
+                Resultado,
+                Resultado_Pct,
+                Fecha,
+                Localidad,
+                Provincia
+            FROM mediciones_rni
+        """
+
+        df = pd.read_sql(query, conn)
+        conn.close()
+
+        return df
+
+    except Exception as e:
+        st.error(f"Error al cargar datos desde SQLite: {e}")
+        return pd.DataFrame()
+
 
 # ============================================================
 # 🎨 SEMÁFORO GLOBAL
 # ============================================================
 
-def render_semaforo_global(df):
-    if df is None or df.empty:
+def render_semaforo_global():
+
+    df = load_mediciones_from_db()
+
+    if df.empty:
+        st.info("No hay datos disponibles.")
         return
 
     if "Resultado_Pct" not in df.columns:
+        st.warning("La columna Resultado_Pct no existe en la base.")
         return
 
     resultados = pd.to_numeric(df["Resultado_Pct"], errors="coerce").dropna()
+
     if resultados.empty:
+        st.info("No hay valores válidos para el semáforo.")
         return
 
     max_pct = resultados.max()
@@ -29,11 +69,13 @@ def render_semaforo_global(df):
         use_container_width=True,
     )
 
+
 # ============================================================
-# 🗺️ FUNCIONES AUXILIARES
+# 🎨 COLOR POR PORCENTAJE
 # ============================================================
 
 def get_color_por_pct(pct):
+
     rangos_colores = [
         (0, 1, "#84C2F5"),
         (1, 2, "#489DFF"),
@@ -58,29 +100,20 @@ def get_color_por_pct(pct):
 # 🗺️ MAPA GLOBAL
 # ============================================================
 
-def render_mapa_global(df):
+def render_mapa_global():
 
-    if df is None or df.empty:
+    df = load_mediciones_from_db()
+
+    if df.empty:
         st.info("No hay datos para mostrar en el mapa.")
         return
 
     required_cols = {"Lat", "Lon", "Resultado", "Resultado_Pct"}
     if not required_cols.issubset(df.columns):
-        st.warning(f"Faltan columnas requeridas: {required_cols}")
+        st.warning("Faltan columnas requeridas en la tabla mediciones_rni.")
         return
 
-    MAX_PUNTOS_MAPA = 12000
-
-    # ------------------ PREPARACIÓN ------------------
-
-    coords = df[[
-        "Lat", "Lon",
-        "Resultado",
-        "Resultado_Pct",
-        "Fecha",
-        "Localidad",
-        "Provincia"
-    ]].copy()
+    coords = df.copy()
 
     coords["Lat"] = pd.to_numeric(coords["Lat"], errors="coerce")
     coords["Lon"] = pd.to_numeric(coords["Lon"], errors="coerce")
@@ -90,48 +123,44 @@ def render_mapa_global(df):
     coords = coords.dropna(subset=["Lat", "Lon", "Resultado_Pct"])
 
     if coords.empty:
-        st.info("No hay coordenadas válidas para el mapa.")
+        st.info("No hay coordenadas válidas.")
         return
 
-    # Usamos directamente la columna nueva
     coords["porcentaje"] = coords["Resultado_Pct"]
-
-    # Forzar Argentina
     coords["lat"] = coords["Lat"].abs() * -1
     coords["lon"] = coords["Lon"].abs() * -1
 
-    # ------------------ OPCIÓN DE FILTRO ------------------
+    # ========================================================
+    # BOTONES EN VEZ DE RADIO
+    # ========================================================
 
-    col1, col2 = st.columns([1, 3])
+    if "map_view_mode" not in st.session_state:
+        st.session_state.map_view_mode = "todos"
+
+    col1, col2 = st.columns(2)
 
     with col1:
-        mostrar_tipo = st.radio(
-            "Vista del mapa:",
-            ["Todos los puntos", "Máximo por localidad"],
-            key="mapa_tipo_vista"
-        )
+        if st.button("🌎 Todos los puntos", use_container_width=True):
+            st.session_state.map_view_mode = "todos"
 
-    if mostrar_tipo == "Máximo por localidad":
+    with col2:
+        if st.button("📍 Máximo por localidad", use_container_width=True):
+            st.session_state.map_view_mode = "max_localidad"
+
+    mostrar_tipo = st.session_state.map_view_mode
+
+    if mostrar_tipo == "max_localidad":
         coords = coords.loc[
             coords.groupby(["Localidad", "Provincia"])["porcentaje"].idxmax()
         ]
 
-    total = len(coords)
+    MAX_PUNTOS_MAPA = 12000
 
-    if total > MAX_PUNTOS_MAPA and mostrar_tipo == "Todos los puntos":
+    if len(coords) > MAX_PUNTOS_MAPA and mostrar_tipo == "todos":
         coords = coords.sample(n=MAX_PUNTOS_MAPA, random_state=42)
-        st.info(
-            f"🗺️ Mostrando {MAX_PUNTOS_MAPA:,} puntos "
-            f"de {total:,} registros totales."
-            .replace(",", ".")
-        )
 
     coords["color"] = coords["porcentaje"].apply(get_color_por_pct)
     coords["pct_display"] = coords["porcentaje"].round(2)
-
-    # ------------------ MAPA ------------------
-
-    st.markdown("## 🗺️ Mapa nacional de mediciones RNI (%)")
 
     lat0 = coords["lat"].mean()
     lon0 = coords["lon"].mean()
@@ -139,14 +168,13 @@ def render_mapa_global(df):
     m = folium.Map(
         location=[lat0, lon0],
         zoom_start=5,
-        tiles="https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
-        attr="CartoDB"
+        tiles="CartoDB positron"
     )
 
     for _, row in coords.iterrows():
 
         popup_text = f"""
-        <div style="font-family: Arial; width: 250px;">
+        <div style="font-family: Arial; width: 240px;">
             <b>{row['Localidad']}</b><br/>
             <b>Provincia:</b> {row['Provincia']}<br/>
             <b>Porcentaje:</b> {row['pct_display']:.2f}%<br/>
@@ -158,15 +186,18 @@ def render_mapa_global(df):
         folium.CircleMarker(
             location=[row["lat"], row["lon"]],
             radius=6,
-            popup=folium.Popup(popup_text, max_width=300),
+            popup=popup_text,
             color=row["color"],
             fill=True,
             fillColor=row["color"],
-            fillOpacity=0.8,
+            fillOpacity=0.85,
             weight=1,
             opacity=0.9
         ).add_to(m)
 
-    st_folium(m, width=1400, height=700)
-
-
+    st_folium(
+        m,
+        width=1400,
+        height=1000,
+        returned_objects=[]
+    )

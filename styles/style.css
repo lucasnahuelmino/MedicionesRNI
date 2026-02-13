@@ -1,363 +1,194 @@
-/* ============================================================
-   ENACOM Dashboard Modern (mid) — style.css
-   ============================================================ */
-
-/* -----------------------------
-   TOKENS / PALETA / SOMBRAS
-   ----------------------------- */
 :root{
   --enacom-blue: #003b7a;
   --enacom-accent: #0070d1;
 
-  --card-bg-strong: rgba(255,255,255,0.92);
-  --card-bg-soft: rgba(255,255,255,0.78);
+  --bg-white: #ffffff;
+  --bg-soft: #f6f8fb;
 
-  --card-border: rgba(0,0,0,0.07);
+  --border-soft: rgba(0,0,0,0.08);
+  --shadow-soft: 0 4px 14px rgba(0,0,0,0.06);
 
-  --shadow-soft: 0 6px 22px rgba(0,0,0,0.08);
-  --shadow-mini: 0 4px 18px rgba(0,0,0,0.06);
+  --radius-main: 12px;
 }
 
-/* -----------------------------
-   CARDS GENERALES
-   ----------------------------- */
-.en-card{
-  background: var(--card-bg-strong);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
+/* =============================
+   BASE
+============================= */
+
+.en-card,
+.kpi-card,
+.top-card{
+  background: var(--bg-white);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-main);
   box-shadow: var(--shadow-soft);
-  padding: 14px;
+  padding: 16px;
 }
 
-/* Hero suave ENACOM */
+/* Hero más sobrio */
 .en-hero{
-  border-radius: 18px;
-  padding: 16px 18px;
-  background: linear-gradient(135deg, rgba(0,59,122,0.12), rgba(0,112,209,0.08));
-  border: 1px solid rgba(0,59,122,0.15);
-  box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+  background: var(--bg-soft);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-main);
+  padding: 18px;
 }
 
-/* -----------------------------
-   HEADER INSTITUCIONAL
-   ----------------------------- */
+/* =============================
+   HEADER
+============================= */
+
 .enacom-header-card{
   display:flex;
-  align-items:center;
   justify-content:space-between;
-  gap:16px;
-
-  padding:16px 18px;
-  margin: 10px 0 18px;
-
-  border: 1px solid rgba(0,0,0,0.06);
-  border-radius: 14px;
-  background: rgba(255,255,255,0.80);
-  box-shadow: var(--shadow-mini);
+  align-items:center;
+  padding:16px 20px;
+  margin: 10px 0 22px;
+  background: var(--bg-white);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius-main);
 }
 
 .enacom-header-left .title{
-  font-size: 1.25rem;
-  font-weight: 800;
-  line-height: 1.1;
-  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
   color: var(--enacom-blue);
+  margin: 0;
 }
 
 .enacom-header-left .subtitle{
-  margin-top: 6px;
-  font-size: 0.95rem;
-  opacity: 0.9;
-}
-
-.enacom-header-right{
-  display:flex;
-  justify-content:flex-end;
-  align-items:center;
-  min-width: 160px;
+  font-size: 0.9rem;
+  opacity: 0.8;
+  margin-top: 4px;
 }
 
 .enacom-header-right img{
-  height: 58px;
-  width: auto;
+  height: 52px;
   object-fit: contain;
 }
 
-/* -----------------------------
-   BOTONES (INSTITUCIONAL)
-   ----------------------------- */
+/* =============================
+   BOTONES
+============================= */
+
 .stButton > button{
-  border-radius: 12px !important;
-  border: 1px solid rgba(0,59,122,0.25) !important;
-}
-
-/* ============================================================
-   SIDEBAR: Estilo mejorado con botones personalizados
-   ============================================================ */
-section[data-testid="stSidebar"]{
-  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 100%);
-}
-
-/* Título del sidebar */
-section[data-testid="stSidebar"] > div > h1{
-  font-size: 1.25rem;
-  font-weight: 900;
-  margin-bottom: 20px;
-  color: var(--enacom-blue);
-}
-
-/* Encabezado "Navegación" */
-section[data-testid="stSidebar"] h3{
-  font-size: 0.95rem;
-  font-weight: 700;
-  color: var(--enacom-blue);
-  margin-top: 0 !important;
-  margin-bottom: 12px !important;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-/* Botones de navegación (reemplazan radio buttons) */
-section[data-testid="stSidebar"] .stButton > button{
-  width: 100% !important;
-  border: 2px solid var(--enacom-blue) !important;
   border-radius: 8px !important;
-  padding: 10px 12px !important;
+  border: 1px solid var(--enacom-blue) !important;
   background: var(--enacom-blue) !important;
   color: white !important;
-  font-weight: 700 !important;
-  font-size: 0.92rem !important;
-  text-transform: uppercase !important;
-  letter-spacing: 0.8px !important;
-  cursor: pointer !important;
-  transition: all 0.25s ease !important;
-  margin-bottom: 8px !important;
+  font-weight: 600 !important;
+  transition: background 0.2s ease !important;
 }
 
-/* Hover en botones de navegación */
-section[data-testid="stSidebar"] .stButton > button:hover{
-  background: linear-gradient(135deg, var(--enacom-blue) 0%, var(--enacom-accent) 100%) !important;
-  border-color: var(--enacom-accent) !important;
-  box-shadow: 0 4px 12px rgba(0,59,122,0.25) !important;
-  transform: translateY(-2px) !important;
-}
-
-/* Botón activo (seleccionado) - se marca diferente */
-section[data-testid="stSidebar"] .stButton > button:active{
+.stButton > button:hover{
   background: var(--enacom-accent) !important;
-  box-shadow: 0 6px 16px rgba(0,112,209,0.3) !important;
 }
 
-/* Expander de filtros */
-section[data-testid="stSidebar"] .streamlit-expanderHeader{
-  font-weight: 700 !important;
-  font-size: 0.98rem !important;
-  color: var(--enacom-blue) !important;
-  background: rgba(0,112,209,0.08) !important;
-  border-radius: 8px !important;
-  padding: 10px 12px !important;
-  border: 1px solid rgba(0,112,209,0.15) !important;
+/* =============================
+   SIDEBAR
+============================= */
+
+section[data-testid="stSidebar"]{
+  background: var(--bg-white);
+  border-right: 1px solid var(--border-soft);
 }
 
-section[data-testid="stSidebar"] .streamlit-expanderHeader:hover{
-  background: rgba(0,112,209,0.12) !important;
-  border-color: rgba(0,112,209,0.25) !important;
+section[data-testid="stSidebar"] h1,
+section[data-testid="stSidebar"] h3{
+  color: var(--enacom-blue);
+  font-weight: 700;
 }
 
-/* Contenido dentro del expander */
-section[data-testid="stSidebar"] .streamlit-expanderContent{
-  padding: 12px 0 !important;
-}
-
-/* ============================================================
-   KPI CARDS (Inicio)
-   ============================================================ */
-.kpi-card{
-  border: 1px solid rgba(0,0,0,0.06);
-  background: rgba(255,255,255,0.75);
-  border-radius: 14px;
-  padding: 14px;
-  box-shadow: var(--shadow-mini);
-}
+/* =============================
+   KPI
+============================= */
 
 .kpi-title{
-  font-size: 0.85rem;
-  opacity: 0.80;
-  margin-bottom: 6px;
+  font-size: 0.8rem;
+  opacity: 0.75;
+  margin-bottom: 4px;
 }
 
 .kpi-value{
-  font-size: 1.60rem;
-  font-weight: 800;
-  line-height: 1.10;
+  font-size: 1.5rem;
+  font-weight: 700;
   color: var(--enacom-blue);
 }
 
 .kpi-sub{
+  font-size: 0.8rem;
+  opacity: 0.75;
   margin-top: 6px;
-  font-size: 0.85rem;
-  opacity: 0.85;
 }
 
-/* ============================================================
-   KPI MINI (por centro/CCTE) — centradas + misma altura
-   ============================================================ */
+/* KPI mini uniforme */
 .kpi-card.kpi-mini{
-  padding: 10px;
-  border-radius: 12px;
-
-  min-height: 126px;           /* uniforme */
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-
-  text-align: center;          /* centrado total */
+  min-height: 110px;
+  text-align: center;
 }
 
-.kpi-card.kpi-mini .kpi-title{
-  font-size: 0.78rem;
-  margin-bottom: 4px;
-  opacity: 0.80;
-  line-height: 1.15;
-
-  /* si un centro es largo, que no rompa la card */
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.kpi-card.kpi-mini .kpi-value{
-  font-size: 1.15rem;
-  font-weight: 900;
-  line-height: 1.05;
-}
-
-.kpi-card.kpi-mini .kpi-sub{
-  font-size: 0.75rem;
-  margin-top: 6px;
-  opacity: 0.88;
-  line-height: 1.20;
-}
-
-/* ============================================================
-   TOP 5 CARDS (Inicio)
-   ============================================================ */
-.top-card{
-  border: 1px solid rgba(0,0,0,0.06);
-  background: var(--card-bg-soft);
-  border-radius: 14px;
-  padding: 12px;
-  box-shadow: var(--shadow-mini);
-  height: 100%;
-}
+/* =============================
+   TOP CARDS
+============================= */
 
 .top-rank{
   font-size: 0.75rem;
-  opacity: 0.75;
-  margin-bottom: 6px;
+  opacity: 0.6;
 }
 
 .top-loc{
-  font-size: 0.95rem;
-  font-weight: 800;
-  line-height: 1.10;
-  margin-bottom: 6px;
-}
-
-.top-meta{
-  font-size: 0.85rem;
-  opacity: 0.86;
-  line-height: 1.20;
+  font-weight: 700;
+  margin: 4px 0;
 }
 
 .top-val{
-  font-size: 1.25rem;
-  font-weight: 900;
-  margin-top: 10px;
-  line-height: 1.10;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--enacom-blue);
 }
 
-.top-pct{
-  font-size: 0.90rem;
-  opacity: 0.90;
-  margin-top: 4px;
-}
+/* =============================
+   METRICS STREAMLIT
+============================= */
 
-/* ============================================================
-   Streamlit metrics: más chicas + wrap
-   (evita "Comodoro Riv..." y similares)
-   ============================================================ */
 div[data-testid="stMetricLabel"]{
   font-size: 0.85rem !important;
 }
 
 div[data-testid="stMetricValue"]{
-  font-size: 1.35rem !important;   /* 1.25–1.45 */
-  line-height: 1.10 !important;
-
-  white-space: normal !important;  /* permite bajar de línea */
-  overflow: visible !important;
-  text-overflow: clip !important;
+  font-size: 1.3rem !important;
+  white-space: normal !important;
 }
 
-/* ============================= */
-/* MAPA FULL PANTALLA RNI        */
-/* ============================= */
+/* =============================
+   MAPA FULL
+============================= */
 
-.fullscreen-map {
-    display: block !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    width: 100%;
-    gap: 0 !important;
+.fullscreen-map,
+.fullscreen-map > div{
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
-.fullscreen-map + * {
-    margin-top: 0 !important;
+iframe[src*="folium"]{
+  border: none !important;
+  width: 100% !important;
 }
 
-/* Folium iframe */
-iframe[src*="folium"] {
-    border: none !important;
-    display: block !important;
-    width: 100% !important;
-}
+/* =============================
+   TABLAS
+============================= */
 
-/* Elimina espacios de contenedores Streamlit alrededor del mapa */
-.fullscreen-map > div {
-    padding: 0 !important;
-    margin: 0 !important;
-}
-
-/* ============================= */
-/* TABLAS Y DATAFRAMES           */
-/* ============================= */
-
-/* Estilo de encabezados de tabla */
-[data-testid="stDataFrame"] thead th {
-  background: linear-gradient(135deg, #003b7a 0%, #0070d1 100%) !important;
+[data-testid="stDataFrame"] thead th{
+  background: var(--enacom-blue) !important;
   color: white !important;
-  font-weight: 700 !important;
-  font-size: 0.95rem !important;
-  padding: 12px 16px !important;
+  font-weight: 600 !important;
   text-align: center !important;
-  border-bottom: 2px solid rgba(0,59,122,0.3) !important;
-  letter-spacing: 0.3px !important;
 }
 
-/* Celdas de tabla */
-[data-testid="stDataFrame"] tbody td {
-  padding: 10px 16px !important;
-  border-color: rgba(0,0,0,0.06) !important;
-  font-size: 0.9rem !important;
+[data-testid="stDataFrame"] tbody tr:nth-child(odd){
+  background-color: rgba(0,0,0,0.02) !important;
 }
 
-/* Filas alternadas para mejor legibilidad */
-[data-testid="stDataFrame"] tbody tr:nth-child(odd) {
-  background-color: rgba(0,59,122,0.02) !important;
+[data-testid="stDataFrame"] tbody tr:hover{
+  background-color: rgba(0,59,122,0.05) !important;
 }
-
-[data-testid="stDataFrame"] tbody tr:hover {
-  background-color: rgba(0,112,209,0.08) !important;
-}
-

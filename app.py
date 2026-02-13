@@ -143,8 +143,8 @@ elif page == "Mapa":
     df_resumen = load_resumen_from_cache()
     
     if not df_resumen.empty:
-        render_semaforo_global(df_all)
-        render_mapa_global(df_all)
+        render_semaforo_global()
+        render_mapa_global()
     else:
         st.info("No hay datos disponibles para mostrar en el mapa.")
 
