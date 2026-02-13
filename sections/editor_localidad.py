@@ -75,7 +75,10 @@ def render_editor_localidad(localidad_seleccionada, df_localidad):
                         # >>> CAMBIO SQLITE: guardamos en DB
                         save_tabla_maestra_to_db(st.session_state["tabla_maestra"])
                         st.success(f"Localidad '{localidad_actual}' eliminada correctamente")
-                        st.experimental_rerun()  # recarga la app para reflejar cambios
+                        try:
+                            st.rerun()
+                        except AttributeError:
+                            st.experimental_rerun()
                     except Exception as e:
                         st.error(f"No se pudo eliminar la localidad: {e}")
                 else:

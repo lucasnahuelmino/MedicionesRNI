@@ -1,116 +1,173 @@
 import numpy as np
 import pandas as pd
-import pydeck as pdk
+import folium
+from folium.plugins import MarkerCluster
 import streamlit as st
+from streamlit_folium import st_folium
 
-def render_semaforo(max_resultado_pct, df_localidad):
-    # ---------------- Semáforo ----------------
-    if max_resultado_pct and not df_localidad.empty:
-        rangos_colores = [
-            (0, 1, "#84C2F5"), (1, 2, "#489DFF"), (2, 4, "#006BD6"),
-            (4, 8, "#A9E7A9"), (8, 15, "#89DD89"), (15, 20, "#4D9623"),
-            (20, 35, "#D9FF00"), (35, 50, "#F39A6D"), (50, 100, "#E68200"),
-            (100, float("inf"), "#CC0000")
-        ]
-        _ = next((color for low, high, color in rangos_colores if low <= max_resultado_pct < high), "#FFFFFF")
+# ============================================================
+# 🎨 SEMÁFORO GLOBAL
+# ============================================================
 
-        # Imagen del semáforo de colores
-        st.image("assets/mapa_color.png", caption="Escala de colores para interpretar los resultados", width="stretch")
-
-
-def render_mapa(df_localidad):
-    # ------------------- MAPA INTERACTIVO ------------------
-    if df_localidad is None or df_localidad.empty:
-        return
-    if "Lat" not in df_localidad.columns or "Lon" not in df_localidad.columns:
+def render_semaforo_global(df):
+    if df is None or df.empty:
         return
 
-    MAX_PUNTOS_MAPA = 12000  # ajustable (8000-20000 según la PC)
-
-    # 1) Tomar SOLO columnas mínimas
-    cols = [c for c in ["Lat", "Lon", "Resultado"] if c in df_localidad.columns]
-    coords = df_localidad[cols].dropna(subset=["Lat", "Lon"]).copy()
-    if coords.empty:
+    if "Resultado_Pct" not in df.columns:
         return
 
-    # 2) Asegurar numéricos
+    resultados = pd.to_numeric(df["Resultado_Pct"], errors="coerce").dropna()
+    if resultados.empty:
+        return
+
+    max_pct = resultados.max()
+
+    st.subheader("🚦 Escala de interpretación")
+    st.image(
+        "assets/mapa_color.png",
+        caption=f"Máximo detectado: {max_pct:.2f} %",
+        use_container_width=True,
+    )
+
+
+# ============================================================
+# 🗺️ FUNCIONES AUXILIARES
+# ============================================================
+
+def get_color_por_pct(pct):
+    rangos_colores = [
+        (0, 1, "#84C2F5"),
+        (1, 2, "#489DFF"),
+        (2, 4, "#006BD6"),
+        (4, 8, "#A9E7A9"),
+        (8, 15, "#89DD89"),
+        (15, 20, "#4D9623"),
+        (20, 35, "#D9FF00"),
+        (35, 50, "#F39A6D"),
+        (50, 100, "#E68200"),
+        (100, float("inf"), "#CC0000"),
+    ]
+
+    for low, high, color in rangos_colores:
+        if low <= pct < high:
+            return color
+
+    return "#C8C8C8"
+
+
+# ============================================================
+# 🗺️ MAPA GLOBAL
+# ============================================================
+
+def render_mapa_global(df):
+
+    if df is None or df.empty:
+        st.info("No hay datos para mostrar en el mapa.")
+        return
+
+    required_cols = {"Lat", "Lon", "Resultado", "Resultado_Pct"}
+    if not required_cols.issubset(df.columns):
+        st.warning(f"Faltan columnas requeridas: {required_cols}")
+        return
+
+    MAX_PUNTOS_MAPA = 12000
+
+    # ------------------ PREPARACIÓN ------------------
+
+    coords = df[[
+        "Lat", "Lon",
+        "Resultado",
+        "Resultado_Pct",
+        "Fecha",
+        "Localidad",
+        "Provincia"
+    ]].copy()
+
     coords["Lat"] = pd.to_numeric(coords["Lat"], errors="coerce")
     coords["Lon"] = pd.to_numeric(coords["Lon"], errors="coerce")
     coords["Resultado"] = pd.to_numeric(coords["Resultado"], errors="coerce")
-    coords = coords.dropna(subset=["Lat", "Lon", "Resultado"])
+    coords["Resultado_Pct"] = pd.to_numeric(coords["Resultado_Pct"], errors="coerce")
+
+    coords = coords.dropna(subset=["Lat", "Lon", "Resultado_Pct"])
+
     if coords.empty:
+        st.info("No hay coordenadas válidas para el mapa.")
         return
 
-    # 3) Convertir a % y quedarnos con eso
-    coords["pct"] = (coords["Resultado"] ** 2) / 3770 / 0.20021 * 100
+    # Usamos directamente la columna nueva
+    coords["porcentaje"] = coords["Resultado_Pct"]
 
-    # 4) Forzar coordenadas negativas (Argentina)
+    # Forzar Argentina
     coords["lat"] = coords["Lat"].abs() * -1
     coords["lon"] = coords["Lon"].abs() * -1
 
-    # 5) 🔥 Si hay demasiados puntos: SAMPLE automático
-    total_puntos = len(coords)
-    if total_puntos > MAX_PUNTOS_MAPA:
+    # ------------------ OPCIÓN DE FILTRO ------------------
+
+    col1, col2 = st.columns([1, 3])
+
+    with col1:
+        mostrar_tipo = st.radio(
+            "Vista del mapa:",
+            ["Todos los puntos", "Máximo por localidad"],
+            key="mapa_tipo_vista"
+        )
+
+    if mostrar_tipo == "Máximo por localidad":
+        coords = coords.loc[
+            coords.groupby(["Localidad", "Provincia"])["porcentaje"].idxmax()
+        ]
+
+    total = len(coords)
+
+    if total > MAX_PUNTOS_MAPA and mostrar_tipo == "Todos los puntos":
         coords = coords.sample(n=MAX_PUNTOS_MAPA, random_state=42)
         st.info(
-            f"🗺️ Mapa: mostrando una muestra de {MAX_PUNTOS_MAPA:,} puntos "
-            f"(de {total_puntos:,}). Filtrá por provincia/CCTE/localidad para ver el detalle completo."
+            f"🗺️ Mostrando {MAX_PUNTOS_MAPA:,} puntos "
+            f"de {total:,} registros totales."
             .replace(",", ".")
         )
 
-    # 6) Colores por % (semaforizado)
-    rangos_colores_map = [
-        (0, 1, [132, 194, 245]),
-        (1, 2, [72, 157, 255]),
-        (2, 4, [0, 107, 214]),
-        (4, 8, [169, 231, 169]),
-        (8, 15, [137, 221, 137]),
-        (15, 20, [77, 150, 35]),
-        (20, 35, [217, 255, 0]),
-        (35, 50, [243, 154, 109]),
-        (50, 100, [230, 130, 0]),
-        (100, float("inf"), [204, 0, 0])
-    ]
+    coords["color"] = coords["porcentaje"].apply(get_color_por_pct)
+    coords["pct_display"] = coords["porcentaje"].round(2)
 
-    def color_semaforo_pct(valor_pct):
-        if pd.isna(valor_pct):
-            return [200, 200, 200]
-        for low, high, color in rangos_colores_map:
-            if low <= valor_pct < high:
-                return color
-        return [0, 0, 0]
+    # ------------------ MAPA ------------------
 
-    coords["color"] = coords["pct"].apply(color_semaforo_pct)
+    st.markdown("## 🗺️ Mapa nacional de mediciones RNI (%)")
 
-    # 7) SOLO lo que viaja al JSON del mapa
-    coords = coords[["lon", "lat", "pct", "color"]].copy()
-    coords["pct"] = coords["pct"].round(2)
+    lat0 = coords["lat"].mean()
+    lon0 = coords["lon"].mean()
 
-    st.subheader("🗺️ Mapa Semaforizado (%)")
-
-    # Fallback por si mean da NaN (casos raros)
-    lat0 = float(coords["lat"].mean()) if np.isfinite(coords["lat"].mean()) else -34.61
-    lon0 = float(coords["lon"].mean()) if np.isfinite(coords["lon"].mean()) else -58.38
-
-    mapa = pdk.Deck(
-        map_style="https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
-        initial_view_state=pdk.ViewState(
-            latitude=lat0,
-            longitude=lon0,
-            zoom=6,
-            pitch=0,
-        ),
-        layers=[
-            pdk.Layer(
-                "ScatterplotLayer",
-                data=coords,
-                get_position='[lon, lat]',
-                get_fill_color='color',
-                get_radius=12,
-                pickable=True,
-            )
-        ],
-        tooltip={"text": "Resultado (%): {pct}"}
+    m = folium.Map(
+        location=[lat0, lon0],
+        zoom_start=5,
+        tiles="https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png",
+        attr="CartoDB"
     )
 
-    st.pydeck_chart(mapa, width="stretch")
+    for _, row in coords.iterrows():
+
+        popup_text = f"""
+        <div style="font-family: Arial; width: 250px;">
+            <b>{row['Localidad']}</b><br/>
+            <b>Provincia:</b> {row['Provincia']}<br/>
+            <b>Porcentaje:</b> {row['pct_display']:.2f}%<br/>
+            <b>Resultado (V/m):</b> {row['Resultado']:.2f}<br/>
+            <b>Fecha:</b> {row.get('Fecha', 'N/A')}<br/>
+        </div>
+        """
+
+        folium.CircleMarker(
+            location=[row["lat"], row["lon"]],
+            radius=6,
+            popup=folium.Popup(popup_text, max_width=300),
+            color=row["color"],
+            fill=True,
+            fillColor=row["color"],
+            fillOpacity=0.8,
+            weight=1,
+            opacity=0.9
+        ).add_to(m)
+
+    st_folium(m, width=1400, height=700)
+
+

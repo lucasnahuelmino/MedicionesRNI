@@ -5,40 +5,63 @@ from db.sqlite_store import load_tabla_maestra_from_db
 
 
 def init_session_state():
-    # ------------------- SESSION STATE ------------------
+    """Inicializa estado de sesión."""
     st.session_state.setdefault("tabla_maestra", pd.DataFrame())
     st.session_state.setdefault("uploaded_files_list", [])
     st.session_state.setdefault("form_ccte", "")
     st.session_state.setdefault("form_provincia", "")
     st.session_state.setdefault("form_localidad", "")
     st.session_state.setdefault("form_expediente", "")
-
+    
     if "uploader_key" not in st.session_state:
         st.session_state["uploader_key"] = 0
 
 
 def ensure_tabla_maestra_loaded():
-    # Carga persistente de tabla maestra desde SQLite
+    """Carga tabla maestra desde SQLite si está vacía.
+    Ahora con @st.cache_data en load_tabla_maestra_from_db, esto es mucho más rápido.
+    """
     if st.session_state["tabla_maestra"].empty:
         try:
             st.session_state["tabla_maestra"] = load_tabla_maestra_from_db()
         except Exception as e:
             st.warning(f"No se pudo cargar tabla desde archivosdata/rni.db: {e}")
 
+
+def reset_tabla_maestra():
+    """Recarga tabla maestra desde SQLite."""
+    try:
+        # Invalida el cache para forzar refresco
+        load_tabla_maestra_from_db.clear()
+        st.session_state["tabla_maestra"] = load_tabla_maestra_from_db()
+        
+        # También reconstruir cache de gráficos cuando se recarga tabla
+        from db.sqlite_store import rebuild_graficos_cache
+        try:
+            rebuild_graficos_cache(st.session_state["tabla_maestra"])
+        except Exception:
+            pass  # Si el rebuild falla, no interrumpir la app
+    except Exception as e:
+        st.warning(f"No se pudo recargar tabla desde archivosdata/rni.db: {e}")
+
+
 def init_global_filters():
     """Inicializa filtros globales en session_state."""
     st.session_state.setdefault(
         "global_filters",
         {
-            "ccte": [],         # multi
-            "provincia": [],    # multi
-            "anio": "Todos",    # single
+            "ccte": [],
+            "provincia": [],
+            "anio": "Todos",
         },
     )
 
 
+@st.cache_data
 def _extract_years(df: pd.DataFrame) -> list[int]:
-    """Obtiene años disponibles desde Fecha o FechaHora."""
+    """Obtiene años disponibles desde Fecha o FechaHora.
+    Cacheada porque solo depende del contenido del DF.
+    """
     years: list[int] = []
     if df is None or df.empty:
         return years
@@ -92,7 +115,6 @@ def render_global_filters_sidebar(df: pd.DataFrame, sb=st.sidebar):
     years = _extract_years(df)
     opciones = ["Todos"] + [str(a) for a in years]
 
-    # Si quedó un año viejo guardado, lo reseteamos prolijo
     anio_actual = gf.get("anio", "Todos")
     if anio_actual not in opciones:
         anio_actual = "Todos"
@@ -106,7 +128,7 @@ def render_global_filters_sidebar(df: pd.DataFrame, sb=st.sidebar):
 
     st.session_state["global_filters"] = gf
 
-    # Mini resumen bonito
+    # Mini resumen
     chips = []
     if gf["ccte"]:
         chips.append(f"CCTE: {', '.join(gf['ccte'])}")
@@ -120,9 +142,8 @@ def render_global_filters_sidebar(df: pd.DataFrame, sb=st.sidebar):
         sb.caption("Mostrando: todo")
 
     # Botón reset
-    if sb.button("🔄 Reset filtros", use_container_width=True):
+    if sb.button("🔄 Reset filtros", width='stretch'):
         st.session_state["global_filters"] = {"ccte": [], "provincia": [], "anio": "Todos"}
-        # fuerza rerun sin importar versión
         try:
             st.rerun()
         except Exception:
@@ -159,8 +180,10 @@ def get_df_filtrado_global(df: pd.DataFrame) -> pd.DataFrame:
             out = out[yy == anio_int]
 
     return out
+
+
 def global_filters_human_label() -> str:
-    """Texto corto tipo: 'Viendo: CCTE X · Prov Y · Año 2025' """
+    """Texto descriptivo de los filtros activos."""
     init_global_filters()
     gf = st.session_state.get("global_filters", {"ccte": [], "provincia": [], "anio": "Todos"})
 

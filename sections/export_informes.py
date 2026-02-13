@@ -26,7 +26,13 @@ def render_export_informes(df_localidad, df_filtrado_prov, localidad_seleccionad
 
         if not st.session_state["tabla_maestra"].empty:
             # Usamos el mismo subset que se está viendo en pantalla:
-            df_export = df_localidad.copy() if not df_localidad.empty else df_filtrado_prov.copy()
+            # Validar que df_localidad no sea None antes de usar .empty
+            if df_localidad is not None and not df_localidad.empty:
+                df_export = df_localidad.copy()
+            elif df_filtrado_prov is not None and not df_filtrado_prov.empty:
+                df_export = df_filtrado_prov.copy()
+            else:
+                df_export = st.session_state["tabla_maestra"].copy()
 
             # Si por algún motivo ese df está vacío, fallback a tabla completa
             if df_export.empty:

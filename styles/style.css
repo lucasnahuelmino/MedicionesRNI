@@ -91,22 +91,82 @@
   border: 1px solid rgba(0,59,122,0.25) !important;
 }
 
-/* -----------------------------
-   SIDEBAR: radio pills
-   ----------------------------- */
-section[data-testid="stSidebar"] .stRadio > div{
-  gap: 6px;
+/* ============================================================
+   SIDEBAR: Estilo mejorado con botones personalizados
+   ============================================================ */
+section[data-testid="stSidebar"]{
+  background: linear-gradient(180deg, rgba(255,255,255,0.98) 0%, rgba(255,255,255,0.95) 100%);
 }
 
-section[data-testid="stSidebar"] .stRadio label{
-  border: 1px solid rgba(0,0,0,0.10);
-  border-radius: 12px;
-  padding: 8px 10px;
-  background: rgba(255,255,255,0.55);
+/* Título del sidebar */
+section[data-testid="stSidebar"] > div > h1{
+  font-size: 1.25rem;
+  font-weight: 900;
+  margin-bottom: 20px;
+  color: var(--enacom-blue);
 }
 
-section[data-testid="stSidebar"] .stRadio label:hover{
-  border-color: rgba(0,59,122,0.35);
+/* Encabezado "Navegación" */
+section[data-testid="stSidebar"] h3{
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--enacom-blue);
+  margin-top: 0 !important;
+  margin-bottom: 12px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Botones de navegación (reemplazan radio buttons) */
+section[data-testid="stSidebar"] .stButton > button{
+  width: 100% !important;
+  border: 2px solid var(--enacom-blue) !important;
+  border-radius: 8px !important;
+  padding: 10px 12px !important;
+  background: var(--enacom-blue) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  font-size: 0.92rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.8px !important;
+  cursor: pointer !important;
+  transition: all 0.25s ease !important;
+  margin-bottom: 8px !important;
+}
+
+/* Hover en botones de navegación */
+section[data-testid="stSidebar"] .stButton > button:hover{
+  background: linear-gradient(135deg, var(--enacom-blue) 0%, var(--enacom-accent) 100%) !important;
+  border-color: var(--enacom-accent) !important;
+  box-shadow: 0 4px 12px rgba(0,59,122,0.25) !important;
+  transform: translateY(-2px) !important;
+}
+
+/* Botón activo (seleccionado) - se marca diferente */
+section[data-testid="stSidebar"] .stButton > button:active{
+  background: var(--enacom-accent) !important;
+  box-shadow: 0 6px 16px rgba(0,112,209,0.3) !important;
+}
+
+/* Expander de filtros */
+section[data-testid="stSidebar"] .streamlit-expanderHeader{
+  font-weight: 700 !important;
+  font-size: 0.98rem !important;
+  color: var(--enacom-blue) !important;
+  background: rgba(0,112,209,0.08) !important;
+  border-radius: 8px !important;
+  padding: 10px 12px !important;
+  border: 1px solid rgba(0,112,209,0.15) !important;
+}
+
+section[data-testid="stSidebar"] .streamlit-expanderHeader:hover{
+  background: rgba(0,112,209,0.12) !important;
+  border-color: rgba(0,112,209,0.25) !important;
+}
+
+/* Contenido dentro del expander */
+section[data-testid="stSidebar"] .streamlit-expanderContent{
+  padding: 12px 0 !important;
 }
 
 /* ============================================================
@@ -239,3 +299,65 @@ div[data-testid="stMetricValue"]{
   overflow: visible !important;
   text-overflow: clip !important;
 }
+
+/* ============================= */
+/* MAPA FULL PANTALLA RNI        */
+/* ============================= */
+
+.fullscreen-map {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100%;
+    gap: 0 !important;
+}
+
+.fullscreen-map + * {
+    margin-top: 0 !important;
+}
+
+/* Folium iframe */
+iframe[src*="folium"] {
+    border: none !important;
+    display: block !important;
+    width: 100% !important;
+}
+
+/* Elimina espacios de contenedores Streamlit alrededor del mapa */
+.fullscreen-map > div {
+    padding: 0 !important;
+    margin: 0 !important;
+}
+
+/* ============================= */
+/* TABLAS Y DATAFRAMES           */
+/* ============================= */
+
+/* Estilo de encabezados de tabla */
+[data-testid="stDataFrame"] thead th {
+  background: linear-gradient(135deg, #003b7a 0%, #0070d1 100%) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  font-size: 0.95rem !important;
+  padding: 12px 16px !important;
+  text-align: center !important;
+  border-bottom: 2px solid rgba(0,59,122,0.3) !important;
+  letter-spacing: 0.3px !important;
+}
+
+/* Celdas de tabla */
+[data-testid="stDataFrame"] tbody td {
+  padding: 10px 16px !important;
+  border-color: rgba(0,0,0,0.06) !important;
+  font-size: 0.9rem !important;
+}
+
+/* Filas alternadas para mejor legibilidad */
+[data-testid="stDataFrame"] tbody tr:nth-child(odd) {
+  background-color: rgba(0,59,122,0.02) !important;
+}
+
+[data-testid="stDataFrame"] tbody tr:hover {
+  background-color: rgba(0,112,209,0.08) !important;
+}
+

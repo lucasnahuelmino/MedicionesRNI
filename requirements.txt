@@ -3,7 +3,8 @@ pandas
 numpy
 Pillow
 openpyxl
-pydeck
+folium
+streamlit-folium
 plotly
 python-docx
 reportlab
