@@ -16,6 +16,24 @@ from reportlab.lib.pagesizes import A4
 from utils.time_utils import calcular_tiempo_total_por_archivo, format_timedelta_long
 
 
+def _fig_to_png_bytes(fig):
+    """Convierte una figura de Plotly a PNG y devuelve un buffer; si falla, devuelve None."""
+    if fig is None:
+        return None
+
+    img_bytes = BytesIO()
+    try:
+        pio.write_image(fig, img_bytes, format="png")
+        img_bytes.seek(0)
+        return img_bytes
+    except Exception as exc:
+        st.warning(
+            "No se pudo renderizar el grafico para el informe (Kaleido). "
+            f"Se continua sin imagen. Detalle: {exc}"
+        )
+        return None
+
+
 def render_export_informes(df_localidad, df_filtrado_prov, localidad_seleccionada, titulo_scope):
     # ============================================================
     # 🖨️ EXPORTACIÓN DE INFORMES PDF / WORD
@@ -206,11 +224,10 @@ def render_export_informes(df_localidad, df_filtrado_prov, localidad_seleccionad
 
                     # --- Gráfico principal (ámbito actual) ---
                     if fig_bar_export is not None:
-                        img_bytes = BytesIO()
-                        pio.write_image(fig_bar_export, img_bytes, format="png")
-                        img_bytes.seek(0)
-                        doc.add_picture(img_bytes, width=Inches(5.5))
-                        doc.add_paragraph("Gráfico de Localidades por Provincia y CCTE (ámbito del informe).")
+                        img_bytes = _fig_to_png_bytes(fig_bar_export)
+                        if img_bytes is not None:
+                            doc.add_picture(img_bytes, width=Inches(5.5))
+                            doc.add_paragraph("Gráfico de Localidades por Provincia y CCTE (ámbito del informe).")
 
                     # --- Desglose por mes (tabla) ---
                     if not resumen_mensual_export.empty:
@@ -330,12 +347,11 @@ def render_export_informes(df_localidad, df_filtrado_prov, localidad_seleccionad
 
                     # Gráfico (si hay)
                     if fig_bar_export is not None:
-                        img_bytes = BytesIO()
-                        pio.write_image(fig_bar_export, img_bytes, format="png")
-                        img_bytes.seek(0)
-                        story.append(RLImage(img_bytes, width=400, height=250))
-                        story.append(Paragraph("Gráfico de Localidades por Provincia y CCTE (ámbito del informe)", styles["Italic"]))
-                        story.append(Spacer(1, 16))
+                        img_bytes = _fig_to_png_bytes(fig_bar_export)
+                        if img_bytes is not None:
+                            story.append(RLImage(img_bytes, width=400, height=250))
+                            story.append(Paragraph("Gráfico de Localidades por Provincia y CCTE (ámbito del informe)", styles["Italic"]))
+                            story.append(Spacer(1, 16))
 
                     # Desglose mensual (en texto)
                     if not resumen_mensual_export.empty:

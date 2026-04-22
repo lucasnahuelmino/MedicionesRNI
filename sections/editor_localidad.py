@@ -8,6 +8,17 @@ from db.sqlite_store import save_tabla_maestra_to_db
 def render_editor_localidad(localidad_seleccionada, df_localidad):
     # -------------------- Edición de información (plegable) --------------------
     if localidad_seleccionada:
+        if df_localidad is None or not isinstance(df_localidad, pd.DataFrame) or df_localidad.empty:
+            tabla_maestra = st.session_state.get("tabla_maestra", pd.DataFrame())
+            if isinstance(tabla_maestra, pd.DataFrame) and not tabla_maestra.empty:
+                df_localidad = tabla_maestra[
+                    tabla_maestra["Localidad"] == localidad_seleccionada
+                ].copy()
+
+        if df_localidad is None or not isinstance(df_localidad, pd.DataFrame) or df_localidad.empty:
+            st.warning("No se encontró información de la localidad seleccionada para editar.")
+            return
+
         # >>> CAMBIO SQLITE: aseguramos que FechaCarga sea datetime antes de usar strftime
         if "FechaCarga" in st.session_state["tabla_maestra"].columns:
             st.session_state["tabla_maestra"]["FechaCarga"] = pd.to_datetime(
@@ -30,19 +41,25 @@ def render_editor_localidad(localidad_seleccionada, df_localidad):
             localidad_actual = df_localidad["Localidad"].iloc[0]
             expediente_actual = df_localidad["Expediente"].iloc[0]
 
+            ccte_options = ["CABA", "Buenos Aires", "Comodoro Rivadavia", "Córdoba", "Neuquén", "Posadas", "Salta"]
+            provincia_options = [
+                "Buenos Aires", "CABA", "Catamarca", "Chaco", "Chubut", "Córdoba", "Corrientes", "Entre Ríos", "Formosa", "Jujuy",
+                "La Pampa", "La Rioja", "Mendoza", "Misiones", "Neuquén", "Río Negro", "Salta", "San Juan", "San Luis", "Santa Cruz",
+                "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
+            ]
+
+            ccte_index = ccte_options.index(ccte_actual) if ccte_actual in ccte_options else 0
+            provincia_index = provincia_options.index(provincia_actual) if provincia_actual in provincia_options else 0
+
             nuevo_ccte = st.selectbox(
                 "CCTE",
-                ["CABA", "Buenos Aires", "Comodoro Rivadavia", "Córdoba", "Neuquén", "Posadas", "Salta"],
-                index=["CABA","Buenos Aires","Comodoro Rivadavia","Córdoba","Neuquén","Posadas","Salta"].index(ccte_actual)
+                ccte_options,
+                index=ccte_index
             )
             nueva_provincia = st.selectbox(
                 "Provincia",
-                ["Buenos Aires","CABA","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy",
-                 "La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz",
-                 "Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"],
-                index=["Buenos Aires","CABA","Catamarca","Chaco","Chubut","Córdoba","Corrientes","Entre Ríos","Formosa","Jujuy",
-                       "La Pampa","La Rioja","Mendoza","Misiones","Neuquén","Río Negro","Salta","San Juan","San Luis","Santa Cruz",
-                       "Santa Fe","Santiago del Estero","Tierra del Fuego","Tucumán"].index(provincia_actual)
+                provincia_options,
+                index=provincia_index
             )
             nueva_localidad = st.text_input("Localidad", value=localidad_actual)
             nuevo_expediente = st.text_input("Expediente", value=expediente_actual)

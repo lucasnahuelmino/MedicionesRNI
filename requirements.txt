@@ -8,4 +8,4 @@ streamlit-folium
 plotly
 python-docx
 reportlab
-kaleido
+kaleido==0.2.1
