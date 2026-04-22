@@ -78,7 +78,7 @@ def insert_mediciones(df: pd.DataFrame, update_resumen: bool = True):
     # Normalizar nombres
     df = df.rename(
         columns={
-            "Nombre Archivo": "Nombre_Archivo",
+            "Nombre Archivo": "Nombre_Archivo",  # normalizar internamente
         }
     )
 
@@ -113,21 +113,29 @@ def insert_mediciones(df: pd.DataFrame, update_resumen: bool = True):
     # Normalizar campos clave: limpiar espacios y convertir valores vacíos a NULL
     for _c in ["CCTE", "Provincia", "Localidad"]:
         if _c in df.columns:
-            df[_c] = df[_c].fillna("").astype(str).str.strip().replace({"": None})
+            df[_c] = df[_c].astype(str).replace({"nan": ""}).str.strip().replace({"": None})
 
     # Convertir todo a python native
     df = df.where(pd.notnull(df), None)
 
 
-    records = list(df.itertuples(index=False, name=None))
+    # Renombrar de vuelta para coincidir con columnas reales de la DB
+    df = df.rename(columns={"Nombre_Archivo": "Nombre Archivo"})
+
+    db_columns = [
+        "CCTE", "Provincia", "Localidad", "Resultado", "Resultado_Pct",
+        "Fecha", "Hora", "Nombre Archivo", "Expediente", "Sonda",
+        "Lat", "Lon", "FechaCarga",
+    ]
+    cols_presentes = [c for c in db_columns if c in df.columns]
+    placeholders = ", ".join(["?"] * len(cols_presentes))
+    col_names = ", ".join([f'"{c}"' for c in cols_presentes])
+    records = list(df[cols_presentes].itertuples(index=False, name=None))
 
     conn = _get_connection()
     try:
         conn.executemany(
-            f"""
-            INSERT INTO {TABLE_MEDICIONES}
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+            f'INSERT INTO {TABLE_MEDICIONES} ({col_names}) VALUES ({placeholders})',
             records,
         )
         conn.commit()
@@ -314,7 +322,7 @@ def rebuild_resumen_cache(df: pd.DataFrame | None = None):
     # Normalizar claves para agrupar: quitar espacios y estableces None para vacíos
     for _c in ["CCTE", "Provincia", "Localidad"]:
         if _c in df.columns:
-            df[_c] = df[_c].fillna("").astype(str).str.strip().replace({"": None})
+            df[_c] = df[_c].astype(str).replace({"nan": ""}).str.strip().replace({"": None})
 
     # Construir FechaHora robusta
     df = add_fechahora(df, fecha_col="Fecha", hora_col="Hora", out_col="FechaHora")
@@ -530,7 +538,7 @@ def rebuild_graficos_cache(df: pd.DataFrame | None = None):
     # Normalizar claves
     for col in ["CCTE", "Provincia", "Localidad"]:
         if col in df.columns:
-            df[col] = df[col].fillna("").astype(str).str.strip().replace({"": None})
+            df[col] = df[col].astype(str).replace({"nan": ""}).str.strip().replace({"": None})
     
     # Construir FechaHora
     df = add_fechahora(df, fecha_col="Fecha", hora_col="Hora", out_col="FechaHora")
