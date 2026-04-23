@@ -7,10 +7,14 @@ from utils.time_utils import (
     add_fechahora,
 )
 from db.sqlite_store import load_resumen_from_cache, load_tabla_maestra_from_db
+from state import get_df_filtrado_global
 
 
 def render_gestion_localidades():
     st.header("📊 Gestión de Localidades")
+
+    df_tabla_maestra = load_tabla_maestra_from_db()
+    df_tabla_maestra = get_df_filtrado_global(df_tabla_maestra)
 
     # Cargar resumen desde cache (evita recalculos)
     resumen_db = load_resumen_from_cache()
@@ -21,6 +25,55 @@ def render_gestion_localidades():
         resumen_db["CCTE"] = resumen_db["CCTE"].astype(str).str.strip()
         resumen_db["Provincia"] = resumen_db["Provincia"].astype(str).str.strip()
         resumen_db["Localidad"] = resumen_db["Localidad"].astype(str).str.strip()
+
+    gf = st.session_state.get("global_filters", {})
+    hay_filtros_globales = bool(gf.get("ccte") or gf.get("provincia") or (gf.get("anio") and gf.get("anio") != "Todos"))
+
+    if hay_filtros_globales:
+        if df_tabla_maestra is None or df_tabla_maestra.empty:
+            resumen_db = pd.DataFrame()
+        else:
+            df_tmp = df_tabla_maestra.copy()
+            if "Resultado" in df_tmp.columns:
+                df_tmp["Resultado"] = pd.to_numeric(df_tmp["Resultado"], errors="coerce")
+            df_tmp = add_fechahora(df_tmp, fecha_col="Fecha", hora_col="Hora", out_col="FechaHora")
+
+            gb = df_tmp.groupby(["CCTE", "Provincia", "Localidad"], dropna=False)
+            resumen_db = gb.agg(
+                Mediciones=("Resultado", "size"),
+                Resultado_Max_Vm=("Resultado", "max"),
+                FechaInicio=("FechaHora", "min"),
+                FechaFin=("FechaHora", "max"),
+            ).reset_index()
+
+            resumen_db["Resultado_Max_Pct"] = (resumen_db["Resultado_Max_Vm"] ** 2) / (3770 * 0.20021) * 100
+            resumen_db.loc[resumen_db["Resultado_Max_Vm"].isna(), "Resultado_Max_Pct"] = None
+
+            exp_map = gb["Expediente"].apply(lambda x: ", ".join(sorted(set(x.dropna().astype(str))))) if "Expediente" in df_tmp.columns else None
+            sond_map = gb["Sonda"].apply(lambda x: ", ".join(sorted(set(x.dropna().astype(str))))) if "Sonda" in df_tmp.columns else None
+
+            if exp_map is not None:
+                resumen_db = resumen_db.merge(exp_map.rename("Expedientes"), on=["CCTE", "Provincia", "Localidad"], how="left")
+            else:
+                resumen_db["Expedientes"] = ""
+            if sond_map is not None:
+                resumen_db = resumen_db.merge(sond_map.rename("Sondas"), on=["CCTE", "Provincia", "Localidad"], how="left")
+            else:
+                resumen_db["Sondas"] = ""
+
+            tiempos_seg = []
+            for _, row in resumen_db[["CCTE", "Provincia", "Localidad"]].iterrows():
+                g = df_tmp[
+                    (df_tmp["CCTE"] == row["CCTE"])
+                    & (df_tmp["Provincia"] == row["Provincia"])
+                    & (df_tmp["Localidad"] == row["Localidad"])
+                ]
+                td = calcular_tiempo_total_por_archivo(g)
+                try:
+                    tiempos_seg.append(int(td.total_seconds()))
+                except Exception:
+                    tiempos_seg.append(0)
+            resumen_db["TiempoTrabajadoSegundos"] = tiempos_seg
 
     # Contexto a retornar
     ctx = {
@@ -112,7 +165,6 @@ def render_gestion_localidades():
         
         # Si el usuario quiere ver detalles diarios/mensuales, cargar datos detallados SOLO de esa localidad
         if st.checkbox("Mostrar resúmenes diarios y mensuales:", key="show_detailed_resumen"):
-            df_tabla_maestra = load_tabla_maestra_from_db()
             if not df_tabla_maestra.empty:
                 # Filtrar solo esta localidad
                 df_localidad = df_tabla_maestra[

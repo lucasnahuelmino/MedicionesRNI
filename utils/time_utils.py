@@ -46,9 +46,12 @@ def add_fechahora(df: pd.DataFrame, fecha_col="Fecha", hora_col="Hora", out_col=
     # Fecha a datetime y "piso" a 00:00:00 para sumar la hora luego
     fecha_dt = pd.to_datetime(out[fecha_col], dayfirst=True, errors="coerce").dt.normalize()
 
-    # Normalizo y parseo hora. Truco: parseo la hora como datetime y saco hour/min/sec.
+    # Normalizo y parseo hora con formatos explicitos para evitar fallback a dateutil.
     hora_norm = _normalize_time_str(out[hora_col])
-    hora_dt = pd.to_datetime(hora_norm, errors="coerce")  # puede quedar NaT si viene muy roto
+    hora_dt = pd.Series(pd.NaT, index=hora_norm.index, dtype="datetime64[ns]")
+    for fmt in ("%H:%M:%S", "%H:%M", "%I:%M:%S%p", "%I:%M%p"):
+        parsed = pd.to_datetime(hora_norm, format=fmt, errors="coerce")
+        hora_dt = hora_dt.fillna(parsed)
 
     # Armo timedelta de hora
     hora_td = (

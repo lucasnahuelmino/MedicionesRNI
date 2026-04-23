@@ -4,6 +4,9 @@ import streamlit as st
 from db.sqlite_store import load_tabla_maestra_from_db
 
 
+DEFAULT_GLOBAL_YEAR = 2026
+
+
 def init_session_state():
     """Inicializa estado de sesión."""
     st.session_state.setdefault("tabla_maestra", pd.DataFrame())
@@ -52,9 +55,18 @@ def init_global_filters():
         {
             "ccte": [],
             "provincia": [],
-            "anio": "Todos",
+            "anio": str(DEFAULT_GLOBAL_YEAR),
         },
     )
+
+
+def _default_year_option(years: list[int]) -> str:
+    """Devuelve el año por defecto: 2026 si existe, sino el más reciente, sino 'Todos'."""
+    if DEFAULT_GLOBAL_YEAR in years:
+        return str(DEFAULT_GLOBAL_YEAR)
+    if years:
+        return str(years[0])
+    return "Todos"
 
 
 @st.cache_data
@@ -115,9 +127,9 @@ def render_global_filters_sidebar(df: pd.DataFrame, sb=st.sidebar):
     years = _extract_years(df)
     opciones = ["Todos"] + [str(a) for a in years]
 
-    anio_actual = gf.get("anio", "Todos")
+    anio_actual = gf.get("anio", _default_year_option(years))
     if anio_actual not in opciones:
-        anio_actual = "Todos"
+        anio_actual = _default_year_option(years)
 
     gf["anio"] = sb.selectbox(
         "Año",
@@ -143,7 +155,11 @@ def render_global_filters_sidebar(df: pd.DataFrame, sb=st.sidebar):
 
     # Botón reset
     if sb.button("🔄 Reset filtros", width='stretch'):
-        st.session_state["global_filters"] = {"ccte": [], "provincia": [], "anio": "Todos"}
+        st.session_state["global_filters"] = {
+            "ccte": [],
+            "provincia": [],
+            "anio": _default_year_option(years),
+        }
         try:
             st.rerun()
         except Exception:
@@ -185,7 +201,10 @@ def get_df_filtrado_global(df: pd.DataFrame) -> pd.DataFrame:
 def global_filters_human_label() -> str:
     """Texto descriptivo de los filtros activos."""
     init_global_filters()
-    gf = st.session_state.get("global_filters", {"ccte": [], "provincia": [], "anio": "Todos"})
+    gf = st.session_state.get(
+        "global_filters",
+        {"ccte": [], "provincia": [], "anio": str(DEFAULT_GLOBAL_YEAR)},
+    )
 
     chips = []
     if gf.get("ccte"):

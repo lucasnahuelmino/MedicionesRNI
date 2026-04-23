@@ -3,6 +3,7 @@ import pandas as pd
 import folium
 import streamlit as st
 from streamlit_folium import st_folium
+from state import get_df_filtrado_global
 
 
 # ============================================================
@@ -38,13 +39,23 @@ def load_mediciones_from_db():
         return pd.DataFrame()
 
 
+def _load_mediciones_filtradas_global() -> pd.DataFrame:
+    """Carga mediciones y aplica los filtros globales actuales."""
+    df = st.session_state.get("tabla_maestra", pd.DataFrame())
+    if df is None or df.empty:
+        df = load_mediciones_from_db()
+    if df is None or df.empty:
+        return pd.DataFrame()
+    return get_df_filtrado_global(df)
+
+
 # ============================================================
 # 🎨 SEMÁFORO GLOBAL
 # ============================================================
 
 def render_semaforo_global():
 
-    df = load_mediciones_from_db()
+    df = _load_mediciones_filtradas_global()
 
     if df.empty:
         st.info("No hay datos disponibles.")
@@ -66,7 +77,7 @@ def render_semaforo_global():
     st.image(
         "assets/mapa_color.png",
         caption=f"Máximo detectado: {max_pct:.2f} %",
-        use_container_width=True,
+        width='stretch',
     )
 
 
@@ -102,7 +113,7 @@ def get_color_por_pct(pct):
 
 def render_mapa_global():
 
-    df = load_mediciones_from_db()
+    df = _load_mediciones_filtradas_global()
 
     if df.empty:
         st.info("No hay datos para mostrar en el mapa.")
@@ -140,11 +151,11 @@ def render_mapa_global():
     col1, col2 = st.columns(2)
 
     with col1:
-        if st.button("🌎 Todos los puntos", use_container_width=True):
+        if st.button("🌎 Todos los puntos", width='stretch'):
             st.session_state.map_view_mode = "todos"
 
     with col2:
-        if st.button("📍 Máximo por localidad", use_container_width=True):
+        if st.button("📍 Máximo por localidad", width='stretch'):
             st.session_state.map_view_mode = "max_localidad"
 
     mostrar_tipo = st.session_state.map_view_mode

@@ -2,6 +2,9 @@ import pandas as pd
 import streamlit as st
 
 
+DEFAULT_GLOBAL_YEAR = "2026"
+
+
 # ============================================================
 # CORE FILTER ENGINE
 # ============================================================
@@ -26,7 +29,7 @@ def apply_global_filters(df: pd.DataFrame) -> pd.DataFrame:
         out = out[out["Provincia"].astype(str).isin(gf["provincia"])]
 
     # Año
-    anio = gf.get("anio", "Todos")
+    anio = gf.get("anio", DEFAULT_GLOBAL_YEAR)
     if anio != "Todos" and "Fecha" in out.columns:
         yy = pd.to_datetime(out["Fecha"], dayfirst=True, errors="coerce").dt.year
         out = out[yy == int(anio)]

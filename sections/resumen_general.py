@@ -9,6 +9,7 @@ from utils.time_utils import (
     format_timedelta_long,
 )
 from db.sqlite_store import load_resumen_from_cache
+from state import get_df_filtrado_global
 
 # Constante para % (la misma que venís usando)
 K_DEN = 3770 * 0.20021
@@ -87,6 +88,7 @@ def render_resumen_general():
     st.header("📊 Resumen general de mediciones")
 
     df = st.session_state.get("tabla_maestra", pd.DataFrame()).copy()
+    df = get_df_filtrado_global(df)
     if df is None or df.empty:
         st.info("Aún no hay datos cargados. Importá mediciones desde el sidebar.")
         return
@@ -167,9 +169,13 @@ def render_resumen_general():
             _f = pd.to_datetime(df["Fecha"], dayfirst=True, errors="coerce")
             df = df[_f.dt.year == int(anio_sel)].copy()
 
-    # Si hay cache en DB y no se filtró por año, la usamos
+    # Si hay filtros globales activos, evitamos cache agregado (mezcla años/filtros).
+    gf = st.session_state.get("global_filters", {})
+    hay_filtros_globales = bool(gf.get("ccte") or gf.get("provincia") or (gf.get("anio") and gf.get("anio") != "Todos"))
+
+    # Si hay cache en DB y no se filtró por año local ni hay filtros globales, la usamos
     resumen = pd.DataFrame()
-    if anio_sel == "Todos" and not resumen_db.empty:
+    if anio_sel == "Todos" and not resumen_db.empty and not hay_filtros_globales:
         resumen = resumen_db.copy()
         # Aplicar filtros en cascada
         if ccte_sel != "Todos":

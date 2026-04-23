@@ -4,12 +4,7 @@ import streamlit as st
 import plotly.express as px
 import numpy as np
 
-from db.sqlite_store import (
-    load_resumen_from_cache,
-    load_graficos_ccte_summary,
-    load_graficos_mensual,
-    load_graficos_hotspots,
-)
+from utils.time_utils import add_fechahora, calcular_tiempo_total_por_archivo
 
 
 def render_highlight_global(df: pd.DataFrame = None):
@@ -46,12 +41,44 @@ def render_highlight_global(df: pd.DataFrame = None):
     else:
         df = df.copy()
 
-    # ============================================================
-    # Cargar datos de cache para visualizaciones rápidas
-    # ============================================================
-    df_ccte = load_graficos_ccte_summary()
-    df_mensual = load_graficos_mensual()
-    df_resumen = load_resumen_from_cache()
+    # Normalizaciones base para todos los bloques (siempre sobre DF ya filtrado globalmente)
+    if "Resultado" in df.columns:
+        df["Resultado"] = pd.to_numeric(df["Resultado"], errors="coerce")
+
+    # Fecha/hora para métricas operativas (días/horas/tendencia mensual)
+    df_time = add_fechahora(df, fecha_col="Fecha", hora_col="Hora", out_col="FechaHora")
+    df_time["_dia"] = pd.to_datetime(df_time.get("FechaHora"), errors="coerce").dt.date
+    df_time["Mes"] = pd.to_datetime(df_time.get("FechaHora"), errors="coerce").dt.to_period("M").astype(str)
+
+    # Resumen por CCTE basado en datos filtrados
+    ccte_rows = []
+    if "CCTE" in df_time.columns:
+        for ccte, g in df_time.groupby("CCTE", dropna=False):
+            if pd.isna(ccte):
+                continue
+            td = calcular_tiempo_total_por_archivo(g)
+            ccte_rows.append(
+                {
+                    "CCTE": str(ccte),
+                    "Puntos": int(len(g)),
+                    "HorasSegundos": int(td.total_seconds()),
+                    "DiasConMedicion": int(g["_dia"].dropna().nunique()),
+                }
+            )
+    df_ccte = pd.DataFrame(ccte_rows)
+
+    # Tendencia mensual basada en datos filtrados
+    if "Mes" in df_time.columns:
+        df_mensual = df_time[df_time["Mes"].notna()].groupby("Mes").size().reset_index(name="Puntos")
+    else:
+        df_mensual = pd.DataFrame()
+
+    # Resumen simple para contadores de cobertura
+    df_resumen = pd.DataFrame()
+    if not df.empty:
+        cols = [c for c in ["Localidad", "Provincia", "CCTE"] if c in df.columns]
+        if cols:
+            df_resumen = df[cols].dropna(how="all").drop_duplicates()
 
     # ============================================================
     # SECCIÓN 1: Valor máximo registrado (highlight principal)
@@ -59,7 +86,6 @@ def render_highlight_global(df: pd.DataFrame = None):
     section_title("🌎", "Valor máximo registrado en Argentina")
 
     df_norm = df.copy()
-    df_norm["Resultado"] = pd.to_numeric(df_norm["Resultado"], errors="coerce")
     
     if not df_norm.empty and df_norm["Resultado"].notna().any():
         idx_max = df_norm["Resultado"].idxmax()

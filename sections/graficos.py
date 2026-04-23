@@ -5,6 +5,7 @@ import streamlit as st
 import plotly.express as px
 
 from state import get_df_filtrado_global
+from utils.time_utils import add_fechahora, calcular_tiempo_total_por_archivo
 
 from db.sqlite_store import (
     load_graficos_ccte_summary,
@@ -22,6 +23,69 @@ def render_graficos():
     df_prov_ccte = load_graficos_provincia_ccte()
     df_mensual = load_graficos_mensual()
     df_hotspots = load_graficos_hotspots()
+
+    gf = st.session_state.get("global_filters", {})
+    hay_filtros_globales = bool(gf.get("ccte") or gf.get("provincia") or (gf.get("anio") and gf.get("anio") != "Todos"))
+
+    if hay_filtros_globales:
+        df_all = st.session_state.get("tabla_maestra", pd.DataFrame())
+        df_filtered = get_df_filtrado_global(df_all).copy() if df_all is not None else pd.DataFrame()
+
+        if not df_filtered.empty:
+            if "Resultado" in df_filtered.columns:
+                df_filtered["Resultado"] = pd.to_numeric(df_filtered["Resultado"], errors="coerce")
+
+            df_with_time = add_fechahora(df_filtered.copy(), fecha_col="Fecha", hora_col="Hora", out_col="FechaHora")
+            df_with_time["Mes"] = pd.to_datetime(df_with_time["FechaHora"], errors="coerce").dt.to_period("M").astype(str)
+
+            # CCTE summary
+            ccte_rows = []
+            for ccte, g in df_with_time.groupby("CCTE", dropna=False):
+                if pd.isna(ccte):
+                    continue
+                td = calcular_tiempo_total_por_archivo(g)
+                ccte_rows.append(
+                    {
+                        "CCTE": str(ccte),
+                        "Puntos": int(len(g)),
+                        "HorasSegundos": int(td.total_seconds()),
+                        "DiasConMedicion": int(pd.to_datetime(g["FechaHora"], errors="coerce").dt.date.nunique()),
+                    }
+                )
+            df_ccte = pd.DataFrame(ccte_rows)
+
+            # Provincia-CCTE
+            if all(c in df_with_time.columns for c in ["Provincia", "CCTE", "Localidad"]):
+                df_prov_ccte = (
+                    df_with_time.groupby(["Provincia", "CCTE"], dropna=False)["Localidad"]
+                    .nunique()
+                    .reset_index(name="NumLocalidades")
+                )
+            else:
+                df_prov_ccte = pd.DataFrame()
+
+            # Mensual
+            if "Mes" in df_with_time.columns:
+                df_mensual = df_with_time.groupby("Mes", dropna=False).size().reset_index(name="Puntos")
+                df_mensual = df_mensual[df_mensual["Mes"].notna()]
+                df_mensual = df_mensual.sort_values("Mes")
+            else:
+                df_mensual = pd.DataFrame()
+
+            # Hotspots
+            if "Resultado" in df_with_time.columns and "Localidad" in df_with_time.columns:
+                df_hot = df_with_time.dropna(subset=["Resultado", "Localidad"]).copy()
+                if not df_hot.empty:
+                    idx = df_hot.groupby("Localidad")["Resultado"].idxmax()
+                    df_hotspots = df_hot.loc[idx, ["Localidad", "Provincia", "CCTE", "Resultado"]].copy()
+                    df_hotspots = df_hotspots.rename(columns={"Resultado": "ResultadoMaxVm"})
+                    df_hotspots["ResultadoMaxPct"] = (df_hotspots["ResultadoMaxVm"] ** 2) / 3770 / 0.20021 * 100
+                    puntos_loc = df_hot.groupby("Localidad").size().rename("Puntos")
+                    df_hotspots = df_hotspots.merge(puntos_loc, on="Localidad", how="left")
+                else:
+                    df_hotspots = pd.DataFrame()
+            else:
+                df_hotspots = pd.DataFrame()
     
     if df_ccte.empty and df_prov_ccte.empty and df_mensual.empty:
         st.info("No hay datos de graficos cacheados. Importa mediciones para generar cache.")
