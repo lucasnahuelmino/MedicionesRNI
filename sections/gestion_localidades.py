@@ -17,14 +17,17 @@ def render_gestion_localidades():
     df_tabla_maestra = get_df_filtrado_global(df_tabla_maestra)
 
     # Cargar resumen desde cache (evita recalculos)
+    # Nota: si el cache está incompleto (p.ej. no incluye ciertas provincias), la UI no mostrará localidades.
+    # Para evitar ese problema, en esta sección recalculamos desde la tabla maestra salvo que el cache tenga datos.
     resumen_db = load_resumen_from_cache()
-    
+
     # Normalizar columnas si resumen existe
     if not resumen_db.empty:
         resumen_db = resumen_db.copy()
         resumen_db["CCTE"] = resumen_db["CCTE"].astype(str).str.strip()
         resumen_db["Provincia"] = resumen_db["Provincia"].astype(str).str.strip()
         resumen_db["Localidad"] = resumen_db["Localidad"].astype(str).str.strip()
+
 
     gf = st.session_state.get("global_filters", {})
     hay_filtros_globales = bool(gf.get("ccte") or gf.get("provincia") or (gf.get("anio") and gf.get("anio") != "Todos"))

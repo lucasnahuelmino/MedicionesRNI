@@ -113,11 +113,24 @@ def get_color_por_pct(pct):
 
 def render_mapa_global():
 
-    df = _load_mediciones_filtradas_global()
+    # Usamos tabla completa (sin filtros) para que el mapa siempre tenga puntos.
+    # Los filtros globales siguen aplicando a semáforo/visibilidad del resto,
+    # pero aquí evitamos que un filtro deje el mapa vacío.
+    df_all = st.session_state.get("tabla_maestra", pd.DataFrame())
+    if df_all is None or df_all.empty:
+        df_all = load_mediciones_from_db()
+
+    df = df_all.copy()
 
     if df.empty:
-        st.info("No hay datos para mostrar en el mapa.")
+        st.info("No hay datos disponibles para cargar el mapa (tabla vacía en DB).")
         return
+
+    # Diagnóstico mínimo (no intrusivo): si existen filtros globales, informamos.
+    gf = st.session_state.get("global_filters", {})
+    if gf.get("ccte") or gf.get("provincia") or (gf.get("anio") and gf.get("anio") != "Todos"):
+        st.caption("Mapa: usando datos completos para evitar vacío por filtros globales.")
+
 
     required_cols = {"Lat", "Lon", "Resultado", "Resultado_Pct"}
     if not required_cols.issubset(df.columns):
