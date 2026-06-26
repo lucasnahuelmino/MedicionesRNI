@@ -10,24 +10,32 @@ from db.sqlite_store import (
 # ACCIONES ADMINISTRATIVAS
 # ============================================================
 
-def eliminar_localidad(localidad: str):
-    """
-    Elimina todas las mediciones de una localidad
-    tanto de SQLite como del session_state.
+def eliminar_localidad(localidad: str, provincia: str | None = None, ccte: str | None = None):
+    """Elimina una localidad de SQLite y fuerza refresco de caches/derivados.
+
+    - Si la UI conoce Provincia y/o CCTE, se usan para evitar borrar de más.
+    - Si solo se envía `localidad`, se borra por Localidad.
     """
     if not localidad:
         st.warning("No se seleccionó ninguna localidad.")
         return
 
     try:
-        # 1️⃣ Borrar de DB
-        delete_by_localidad(localidad)
+        delete_by_localidad(localidad, provincia=provincia, ccte=ccte)
 
-        # 2️⃣ Recargar tabla completa desde DB
+        # Recargar tabla completa desde DB y refrescar session_state
         df = load_tabla_maestra_from_db()
         st.session_state["tabla_maestra"] = df
 
-        st.success(f"Localidad '{localidad}' eliminada correctamente.")
+        scope = []
+        scope.append(f"Localidad='{localidad}'")
+        if provincia:
+            scope.append(f"Provincia='{provincia}'")
+        if ccte:
+            scope.append(f"CCTE='{ccte}'")
+
+        st.success(f"Localidad eliminada correctamente ({', '.join(scope)}).")
 
     except Exception as e:
         st.error(f"Error al eliminar localidad '{localidad}': {e}")
+

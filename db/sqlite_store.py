@@ -119,6 +119,19 @@ def insert_mediciones(df: pd.DataFrame, update_resumen: bool = True):
     df = df.where(pd.notnull(df), None)
 
 
+    # SQLite no soporta pandas Timestamp directamente.
+    # Normalizamos cualquier Timestamp/Timedelta a str (ISO) / float en insert.
+    for _col in df.columns:
+        if df[_col].dtype.kind in ("M", "m"):  # datetime64 / timedelta64
+            df[_col] = df[_col].apply(lambda x: x.isoformat() if x is not None else None)
+        else:
+            # por si quedan pandas.Timestamp en dtype object
+            df[_col] = df[_col].apply(
+                lambda x: x.isoformat() if hasattr(x, "isoformat") and x.__class__.__name__ in ("Timestamp", "Timedelta") else x
+            )
+
+
+
     # Renombrar de vuelta para coincidir con columnas reales de la DB
     df = df.rename(columns={"Nombre_Archivo": "Nombre Archivo"})
 
@@ -187,16 +200,69 @@ def load_tabla_maestra_from_db() -> pd.DataFrame:
 # DELETE
 # ============================================================
 
-def delete_by_localidad(localidad: str):
+def delete_by_localidad(localidad: str, provincia: str | None = None, ccte: str | None = None):
+    """Elimina registros de `mediciones_rni` correspondientes a una localidad."""
+    localidad = (localidad or "").strip()
+    provincia = provincia.strip() if isinstance(provincia, str) else provincia
+    ccte = ccte.strip() if isinstance(ccte, str) else ccte
+
+    if not localidad:
+        return
+
     conn = _get_connection()
     try:
+        where = ["Localidad = ?"]
+        params = [localidad]
+
+        if provincia:
+            where.append("Provincia = ?")
+            params.append(provincia)
+
+        if ccte:
+            where.append("CCTE = ?")
+            params.append(ccte)
+
+        where_sql = " AND ".join(where)
+
+        cur = conn.execute(
+            f"SELECT COUNT(*) FROM {TABLE_MEDICIONES} WHERE {where_sql}",
+            tuple(params),
+        )
+        count_to_delete = cur.fetchone()[0]
+
+        if count_to_delete <= 0:
+            return
+
         conn.execute(
-            f"DELETE FROM {TABLE_MEDICIONES} WHERE Localidad = ?",
-            (localidad,),
+            f"DELETE FROM {TABLE_MEDICIONES} WHERE {where_sql}",
+            tuple(params),
         )
         conn.commit()
     finally:
         conn.close()
+
+    # Reconstruir caches/derivados para que no queden inconsistentes
+    try:
+        rebuild_resumen_cache()
+    except Exception:
+        pass
+    try:
+        rebuild_graficos_cache()
+    except Exception:
+        pass
+
+    # Invalidar caches de lectura Streamlit
+    try:
+        load_tabla_maestra_from_db.clear()
+    except Exception:
+        pass
+    try:
+        load_resumen_from_cache.clear()
+    except Exception:
+        pass
+
+
+
 
 
 # ============================================================
@@ -382,8 +448,8 @@ def rebuild_resumen_cache(df: pd.DataFrame | None = None):
                     int(r.get("Mediciones") or 0),
                     None if pd.isna(r.get("Resultado_Max_Vm")) else float(r.get("Resultado_Max_Vm")),
                     None if pd.isna(r.get("Resultado_Max_Pct")) else float(r.get("Resultado_Max_Pct")),
-                    None if pd.isna(r.get("FechaInicio")) else str(r.get("FechaInicio")),
-                    None if pd.isna(r.get("FechaFin")) else str(r.get("FechaFin")),
+                    None if pd.isna(r.get("FechaInicio")) else (r.get("FechaInicio").to_pydatetime().isoformat() if hasattr(r.get("FechaInicio"), "to_pydatetime") else str(r.get("FechaInicio"))),
+                    None if pd.isna(r.get("FechaFin")) else (r.get("FechaFin").to_pydatetime().isoformat() if hasattr(r.get("FechaFin"), "to_pydatetime") else str(r.get("FechaFin"))),
                     r.get("Expedientes") or "",
                     r.get("Sondas") or "",
                     int(r.get("TiempoTrabajadoSegundos") or 0),
