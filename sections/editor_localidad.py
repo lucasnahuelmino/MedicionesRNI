@@ -2,7 +2,7 @@ from datetime import datetime
 import pandas as pd
 import streamlit as st
 
-from db.sqlite_store import save_tabla_maestra_to_db
+from db.sqlite_store import save_tabla_maestra_to_db, delete_by_localidad, load_tabla_maestra_from_db, load_resumen_from_cache
 
 
 def render_editor_localidad(localidad_seleccionada, df_localidad):
@@ -84,21 +84,47 @@ def render_editor_localidad(localidad_seleccionada, df_localidad):
 
             st.button("💾 Guardar cambios", on_click=guardar_cambios)
 
+            # ============================================================
+            # ✅ FIX: Usar delete_by_localidad() para eliminación correcta
+            # ============================================================
             def eliminar_localidad_cb():
-                mask = st.session_state["tabla_maestra"]["Localidad"] == localidad_actual
-                if mask.any():
+                """
+                Elimina UNA localidad específica (con CCTE y Provincia) 
+                sin afectar otros registros de la base de datos.
+                """
+                # Obtener los datos de identificación de la localidad
+                ccte_para_eliminar = df_localidad["CCTE"].iloc[0] if not df_localidad.empty else None
+                provincia_para_eliminar = df_localidad["Provincia"].iloc[0] if not df_localidad.empty else None
+                
+                try:
+                    # ✅ Usar la función correcta que FILTRA la eliminación
+                    # (no borra TODO, solo los registros de esta localidad específica)
+                    delete_by_localidad(
+                        localidad=localidad_actual,
+                        provincia=provincia_para_eliminar,
+                        ccte=ccte_para_eliminar
+                    )
+                    
+                    # Actualizar session_state para reflejar los cambios en la UI
+                    mask = st.session_state["tabla_maestra"]["Localidad"] == localidad_actual
                     st.session_state["tabla_maestra"] = st.session_state["tabla_maestra"].loc[~mask]
+                    
+                    # Limpiar caches de Streamlit para forzar recarga de datos
                     try:
-                        # >>> CAMBIO SQLITE: guardamos en DB
-                        save_tabla_maestra_to_db(st.session_state["tabla_maestra"])
-                        st.success(f"Localidad '{localidad_actual}' eliminada correctamente")
-                        try:
-                            st.rerun()
-                        except AttributeError:
-                            st.experimental_rerun()
-                    except Exception as e:
-                        st.error(f"No se pudo eliminar la localidad: {e}")
-                else:
-                    st.warning("No se encontró la localidad para eliminar.")
+                        load_tabla_maestra_from_db.clear()
+                        load_resumen_from_cache.clear()
+                    except Exception:
+                        pass  # Si no existen los caches, continuar sin errores
+                    
+                    st.success(f"✅ Localidad '{localidad_actual}' eliminada correctamente")
+                    
+                    # Recargar la página para actualizar la UI
+                    try:
+                        st.rerun()
+                    except AttributeError:
+                        st.experimental_rerun()
+                        
+                except Exception as e:
+                    st.error(f"❌ No se pudo eliminar la localidad: {e}")
 
             st.button("🗑️ Eliminar localidad", on_click=eliminar_localidad_cb)
