@@ -48,6 +48,17 @@ def render_editor_localidad(localidad_seleccionada, df_localidad):
                 "Santa Fe", "Santiago del Estero", "Tierra del Fuego", "Tucumán",
             ]
 
+            # Bug corregido: si el CCTE/Provincia real de la localidad no estaba
+            # en estas listas fijas, el selectbox caía en índice 0 sin avisar
+            # (mostraba "CABA" aunque el valor real fuera otro), y al guardar
+            # CUALQUIER cambio (incluso solo el Expediente) se pisaba el CCTE
+            # real por "CABA" silenciosamente. Ahora se agrega el valor actual
+            # a la lista si no está, para no perder ni corromper datos.
+            if ccte_actual and ccte_actual not in ccte_options:
+                ccte_options = [ccte_actual] + ccte_options
+            if provincia_actual and provincia_actual not in provincia_options:
+                provincia_options = [provincia_actual] + provincia_options
+
             ccte_index = ccte_options.index(ccte_actual) if ccte_actual in ccte_options else 0
             provincia_index = provincia_options.index(provincia_actual) if provincia_actual in provincia_options else 0
 
@@ -68,10 +79,14 @@ def render_editor_localidad(localidad_seleccionada, df_localidad):
                 st.session_state["tabla_maestra"]["FechaCarga"] = pd.NaT
 
             def guardar_cambios():
+                if not nueva_localidad.strip():
+                    st.error("El nombre de la localidad no puede quedar vacío.")
+                    return
+
                 mask = st.session_state["tabla_maestra"]["Localidad"] == localidad_actual
                 st.session_state["tabla_maestra"].loc[mask, "CCTE"] = nuevo_ccte
                 st.session_state["tabla_maestra"].loc[mask, "Provincia"] = nueva_provincia
-                st.session_state["tabla_maestra"].loc[mask, "Localidad"] = nueva_localidad
+                st.session_state["tabla_maestra"].loc[mask, "Localidad"] = nueva_localidad.strip()
                 st.session_state["tabla_maestra"].loc[mask, "Expediente"] = nuevo_expediente
                 st.session_state["tabla_maestra"].loc[mask, "FechaCarga"] = datetime.now()
 
@@ -79,6 +94,13 @@ def render_editor_localidad(localidad_seleccionada, df_localidad):
                     # >>> CAMBIO SQLITE: guardamos en DB
                     save_tabla_maestra_to_db(st.session_state["tabla_maestra"])
                     st.success("Cambios guardados correctamente")
+                    # Antes no había rerun acá: los selectbox de Gestión (CCTE/
+                    # Provincia/Localidad) seguían mostrando los valores viejos
+                    # hasta que el usuario interactuaba con algo más.
+                    try:
+                        st.rerun()
+                    except AttributeError:
+                        st.experimental_rerun()
                 except Exception as e:
                     st.error(f"No se pudieron guardar los cambios: {e}")
 
@@ -92,24 +114,21 @@ def render_editor_localidad(localidad_seleccionada, df_localidad):
                 Elimina UNA localidad específica (con CCTE y Provincia) 
                 sin afectar otros registros de la base de datos.
                 """
-                # Obtener los datos de identificación de la localidad
+
                 ccte_para_eliminar = df_localidad["CCTE"].iloc[0] if not df_localidad.empty else None
                 provincia_para_eliminar = df_localidad["Provincia"].iloc[0] if not df_localidad.empty else None
                 
                 try:
-                    # ✅ Usar la función correcta que FILTRA la eliminación
-                    # (no borra TODO, solo los registros de esta localidad específica)
                     delete_by_localidad(
                         localidad=localidad_actual,
                         provincia=provincia_para_eliminar,
                         ccte=ccte_para_eliminar
                     )
                     
-                    # Actualizar session_state para reflejar los cambios en la UI
+
                     mask = st.session_state["tabla_maestra"]["Localidad"] == localidad_actual
                     st.session_state["tabla_maestra"] = st.session_state["tabla_maestra"].loc[~mask]
-                    
-                    # Limpiar caches de Streamlit para forzar recarga de datos
+
                     try:
                         load_tabla_maestra_from_db.clear()
                         load_resumen_from_cache.clear()
@@ -127,4 +146,6 @@ def render_editor_localidad(localidad_seleccionada, df_localidad):
                 except Exception as e:
                     st.error(f"❌ No se pudo eliminar la localidad: {e}")
 
-            st.button("🗑️ Eliminar localidad", on_click=eliminar_localidad_cb)
+            st.markdown("---")
+            with st.container(key="danger-zone"):
+                st.button("🗑️ Eliminar localidad", on_click=eliminar_localidad_cb)

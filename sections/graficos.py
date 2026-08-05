@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 import plotly.express as px
 
-from state import get_df_filtrado_global
+from state import get_df_filtrado_global, has_active_global_filters, render_active_filters_banner
 from utils.time_utils import add_fechahora, calcular_tiempo_total_por_archivo
 
 from db.sqlite_store import (
@@ -16,7 +16,7 @@ from db.sqlite_store import (
 
 def render_graficos():
     st.header("📊 Tablero de comando")
-
+    render_active_filters_banner()
 
     # 1) Cargar datos precacheados desde DB (sin cálculos en tiempo real)
     df_ccte = load_graficos_ccte_summary()
@@ -24,14 +24,21 @@ def render_graficos():
     df_mensual = load_graficos_mensual()
     df_hotspots = load_graficos_hotspots()
 
-    gf = st.session_state.get("global_filters", {})
-    hay_filtros_globales = bool(gf.get("ccte") or gf.get("provincia") or (gf.get("anio") and gf.get("anio") != "Todos"))
+    hay_filtros_globales = has_active_global_filters()
 
     if hay_filtros_globales:
         df_all = st.session_state.get("tabla_maestra", pd.DataFrame())
         df_filtered = get_df_filtrado_global(df_all).copy() if df_all is not None else pd.DataFrame()
 
-        if not df_filtered.empty:
+        if df_filtered.empty:
+            # Bug corregido: antes, si el filtro global no dejaba ningún registro,
+            # los gráficos seguían mostrando el cache SIN filtrar (datos de todos
+            # los CCTE/provincias), lo cual era inconsistente con el resto de la app.
+            df_ccte = pd.DataFrame()
+            df_prov_ccte = pd.DataFrame()
+            df_mensual = pd.DataFrame()
+            df_hotspots = pd.DataFrame()
+        else:
             if "Resultado" in df_filtered.columns:
                 df_filtered["Resultado"] = pd.to_numeric(df_filtered["Resultado"], errors="coerce")
 
@@ -244,5 +251,3 @@ def render_graficos():
                     top = top.rename(columns={"Resultado": "Resultado V/m"})
                     cols = [c for c in ["CCTE", "Provincia", "Localidad", "Resultado V/m", "Resultado %", "Expediente", "Nombre Archivo"] if c in top.columns]
                     st.dataframe(top[cols].reset_index(drop=True), width='stretch')
-
-    

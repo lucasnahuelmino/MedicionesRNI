@@ -291,8 +291,19 @@ def save_tabla_maestra_to_db(df: pd.DataFrame):
     # Insert sin reconstruir aún (reconstruiremos una sola vez abajo)
     insert_mediciones(df, update_resumen=False)
 
-    # Reconstruir la tabla de resumen una vez
-    rebuild_resumen_cache()
+    # Bug corregido: antes NO se invalidaba el cache de load_tabla_maestra_from_db
+    # acá. Consecuencia real: rebuild_resumen_cache() de abajo (cuando se la llama
+    # sin `df`) recarga la tabla con load_tabla_maestra_from_db(), que devolvía la
+    # versión cacheada VIEJA (pre-edición) — es decir, el resumen se reconstruía
+    # con datos desactualizados aunque la tabla de mediciones ya tuviera los
+    # cambios. Además, cualquier otra sección que llame a
+    # load_tabla_maestra_from_db() (p. ej. Gestión) seguía viendo la versión
+    # vieja hasta reiniciar la app. Se invalida acá y se pasa `df` explícito
+    # para no depender del estado del cache.
+    load_tabla_maestra_from_db.clear()
+
+    # Reconstruir la tabla de resumen una vez, con los datos ya editados
+    rebuild_resumen_cache(df)
 
 
 # ============================================================

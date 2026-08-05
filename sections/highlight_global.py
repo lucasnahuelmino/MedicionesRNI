@@ -459,7 +459,3 @@ def render_highlight_global(df: pd.DataFrame = None):
         )
     
     st.markdown("---")
-    st.caption(
-        "ℹ️ Los datos mostrados incluyen todas las mediciones en la base de datos, "
-        "filtrados según los criterios globales del menú lateral."
-    )

@@ -198,8 +198,24 @@ def get_df_filtrado_global(df: pd.DataFrame) -> pd.DataFrame:
     return out
 
 
+def has_active_global_filters() -> bool:
+    """True si hay algún filtro global (CCTE/Provincia/Año) activo.
+
+    Centraliza una condición que antes estaba duplicada, con el mismo
+    texto exacto, en resumen_general.py, graficos.py, gestion_localidades.py
+    y semaforo_mapa.py. Al estar en un solo lugar, un cambio futuro en qué
+    cuenta como "filtro activo" (por ejemplo agregar un filtro nuevo) queda
+    consistente en todas las secciones automáticamente.
+    """
+    init_global_filters()
+    gf = st.session_state.get("global_filters", {})
+    return bool(
+        gf.get("ccte") or gf.get("provincia") or (gf.get("anio") and gf.get("anio") != "Todos")
+    )
+
+
 def global_filters_human_label() -> str:
-    """Texto descriptivo de los filtros activos."""
+    """Texto descriptivo de los filtros globales activos."""
     init_global_filters()
     gf = st.session_state.get(
         "global_filters",
@@ -215,3 +231,14 @@ def global_filters_human_label() -> str:
         chips.append(f"Año: {gf['anio']}")
 
     return "Viendo: " + (" · ".join(chips) if chips else "todo")
+
+
+def render_active_filters_banner(extra: str = ""):
+    """Muestra, de forma consistente en todas las secciones, qué filtros
+    globales están activos. `extra` permite agregar filtros propios de la
+    sección (ej. localidad seleccionada en Gestión) al mismo renglón.
+    """
+    texto = global_filters_human_label()
+    if extra:
+        texto = f"{texto} · {extra}"
+    st.caption(f"🔎 {texto}")

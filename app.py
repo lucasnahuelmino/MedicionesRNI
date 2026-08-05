@@ -76,6 +76,8 @@ page = st.session_state.get("page", "Inicio")
 # ============================================================
 if page == "Inicio":
     from sections.highlight_global import render_highlight_global
+    from state import render_active_filters_banner
+    render_active_filters_banner()
     df_filtrado = get_df_filtrado_global(df_all)  # Solo calcula aquí si se necesita
     render_highlight_global(df_filtrado)
 
@@ -136,8 +138,12 @@ elif page == "Mapa":
         render_semaforo_global,
     )
     from db.sqlite_store import load_resumen_from_cache
-    
+    from state import render_active_filters_banner
+
     st.header("🗺️ Mapa de cobertura RNI")
+    render_active_filters_banner(
+        extra="el mapa tiene su propio toggle abajo para aplicarlos o no"
+    )
     
     # Cargar datos de resumen para mostrar todas las localidades
     df_resumen = load_resumen_from_cache()

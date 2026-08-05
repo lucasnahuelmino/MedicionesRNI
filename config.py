@@ -6,13 +6,9 @@ CSS_PATH = BASE_DIR / "styles" / "style.css"
 ASSETS = BASE_DIR / "assets"
 
 # ---------------------- DB ----------------------
-DB_FILE = "archivosdata/rni.db"
-TABLE_NAME = "tabla_maestra"
-
-EXPECTED_COLS = [
-    "CCTE", "Provincia", "Localidad",
-    "Resultado", "Fecha", "Hora",
-    "Nombre Archivo", "Expediente",
-    "Sonda", "Lat", "Lon",
-    "FechaCarga",
-]
+# La configuración real de la base (ruta y nombre de tabla) vive en
+# db/sqlite_store.py (DB_PATH = archivosdata/rni.db, tabla mediciones_rni).
+# Antes había acá un DB_FILE/TABLE_NAME que apuntaban a una tabla
+# "tabla_maestra" inexistente y no se usaban en ningún lado — se quitaron
+# para no inducir a error a futuro. Si necesitás las columnas esperadas de
+# un Excel de carga, están en processing/excel_processor.py.

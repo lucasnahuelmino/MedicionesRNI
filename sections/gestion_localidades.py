@@ -7,11 +7,12 @@ from utils.time_utils import (
     add_fechahora,
 )
 from db.sqlite_store import load_resumen_from_cache, load_tabla_maestra_from_db
-from state import get_df_filtrado_global
+from state import get_df_filtrado_global, has_active_global_filters, render_active_filters_banner
 
 
 def render_gestion_localidades():
     st.header("📊 Gestión de Localidades")
+    render_active_filters_banner()
 
     df_tabla_maestra = load_tabla_maestra_from_db()
     df_tabla_maestra = get_df_filtrado_global(df_tabla_maestra)
@@ -29,8 +30,7 @@ def render_gestion_localidades():
         resumen_db["Localidad"] = resumen_db["Localidad"].astype(str).str.strip()
 
 
-    gf = st.session_state.get("global_filters", {})
-    hay_filtros_globales = bool(gf.get("ccte") or gf.get("provincia") or (gf.get("anio") and gf.get("anio") != "Todos"))
+    hay_filtros_globales = has_active_global_filters()
 
     if hay_filtros_globales:
         if df_tabla_maestra is None or df_tabla_maestra.empty:
@@ -120,6 +120,17 @@ def render_gestion_localidades():
     with col4:
         st.write("")  # Placeholder para alineamiento
 
+    # Filtros locales de esta página (además de los globales del sidebar).
+    filtros_locales = []
+    if ccte_filtro != "Todos":
+        filtros_locales.append(f"CCTE: {ccte_filtro}")
+    if provincia_filtro != "Todas":
+        filtros_locales.append(f"Prov: {provincia_filtro}")
+    if localidad_seleccionada:
+        filtros_locales.append(f"Localidad: {localidad_seleccionada}")
+    if filtros_locales:
+        st.caption("📌 Filtro local de esta página: " + " · ".join(filtros_locales))
+
     # Mostrar datos de resumen de la tabla resumen_localidades
     if localidad_seleccionada:
         # Si hay localidad seleccionada, mostrar resumen y detalles diarios/mensuales
@@ -127,8 +138,8 @@ def render_gestion_localidades():
         
         if fila_resumen.empty:
             st.warning("No hay datos para esa localidad.")
-            return
-        
+            return ctx
+
         fila = fila_resumen.iloc[0]
         provincia_real = fila.get("Provincia", "N/A")
         ccte_real = fila.get("CCTE", "N/A")
@@ -165,6 +176,7 @@ def render_gestion_localidades():
         # Actualizar contexto con datos de esta localidad seleccionada
         ctx["localidad_seleccionada"] = localidad_seleccionada
         ctx["max_resultado_pct"] = max_pct if pd.notna(max_pct) else 0
+        ctx["titulo_scope"] = titulo_scope
         
         # Si el usuario quiere ver detalles diarios/mensuales, cargar datos detallados SOLO de esa localidad
         if st.checkbox("Mostrar resúmenes diarios y mensuales:", key="show_detailed_resumen"):
@@ -309,5 +321,15 @@ def render_gestion_localidades():
         
         st.dataframe(resumen_vista, width="stretch")
         st.info("Selecciona una localidad arriba para ver detalles diarios/mensuales.")
-    
+
+
+        ctx["titulo_scope"] = titulo_scope
+        if not df_tabla_maestra.empty:
+            df_prov_ccte = df_tabla_maestra.copy()
+            if ccte_filtro != "Todos" and "CCTE" in df_prov_ccte.columns:
+                df_prov_ccte = df_prov_ccte[df_prov_ccte["CCTE"] == ccte_filtro]
+            if provincia_filtro != "Todas" and "Provincia" in df_prov_ccte.columns:
+                df_prov_ccte = df_prov_ccte[df_prov_ccte["Provincia"] == provincia_filtro]
+            ctx["df_filtrado_prov"] = df_prov_ccte
+
     return ctx

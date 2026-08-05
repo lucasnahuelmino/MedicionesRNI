@@ -84,6 +84,54 @@
 }
 
 /* =============================
+   SIDEBAR – NAVEGACIÓN
+   Antes todos los botones del menú (activo e inactivo) se veían
+   idénticos por la regla genérica de arriba. Estas reglas, más
+   específicas, distinguen la página activa ("primary") de las demás
+   ("secondary") sin afectar el resto de los botones de la app.
+============================= */
+
+section[data-testid="stSidebar"] .stButton > button[kind="primary"]{
+  background: var(--enacom-blue) !important;
+  border: 1px solid var(--enacom-blue) !important;
+  color: white !important;
+  font-weight: 700 !important;
+  box-shadow: var(--shadow-soft);
+}
+
+section[data-testid="stSidebar"] .stButton > button[kind="secondary"]{
+  background: var(--bg-white) !important;
+  border: 1px solid var(--border-soft) !important;
+  color: var(--enacom-blue) !important;
+  font-weight: 500 !important;
+}
+
+section[data-testid="stSidebar"] .stButton > button[kind="secondary"]:hover{
+  background: var(--bg-soft) !important;
+  border-color: var(--enacom-accent) !important;
+  color: var(--enacom-accent) !important;
+}
+
+/* =============================
+   ACCIONES DESTRUCTIVAS
+   Uso: envolver el botón en st.container(key="danger-zone") para que
+   se pinte de rojo en vez del azul genérico de la app (ej: "Eliminar
+   localidad"). Streamlit genera la clase .st-key-danger-zone en el
+   contenedor automáticamente a partir del key.
+============================= */
+
+.st-key-danger-zone .stButton > button{
+  background: #B3261E !important;
+  border: 1px solid #B3261E !important;
+  color: white !important;
+}
+
+.st-key-danger-zone .stButton > button:hover{
+  background: #8C1D18 !important;
+  border-color: #8C1D18 !important;
+}
+
+/* =============================
    SIDEBAR
 ============================= */
 

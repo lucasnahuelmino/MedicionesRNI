@@ -36,15 +36,28 @@ def render_sidebar(df: pd.DataFrame = None):
             titulo = "Mapa"
         elif seccion == "CARGA":
             titulo = "Carga"
-        
-        # Crear botón con clase CSS personalizada
+
+        # `is_selected` se calculaba pero antes nunca se usaba: todos los
+        # botones del menú se veían exactamente iguales y no había forma de
+        # saber en qué sección estabas. Ahora se usa `type` para que el botón
+        # de la página activa se vea distinto (ver style.css).
         is_selected = pagina_actual == titulo
         if st.sidebar.button(
             seccion,
             key=f"btn_{seccion}",
             width='stretch',
+            type="primary" if is_selected else "secondary",
         ):
             st.session_state["page"] = titulo
+            # Bug: sin este rerun, el botón se dibuja con el `type` calculado
+            # a partir del valor de "page" ANTES del click (el cambio recién
+            # se reflejaba en el sidebar en la siguiente interacción, no en
+            # esta). Forzamos el rerun ya mismo para que quede marcado el
+            # botón correcto en el mismo click.
+            try:
+                st.rerun()
+            except AttributeError:
+                st.experimental_rerun()
 
     st.sidebar.markdown("---")
 
